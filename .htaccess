@@ -1,0 +1,19 @@
+# Renewal Center (v0.1, one copy) - the Apache conf denies lib/ .git;
+# this is the second lock.
+DirectoryIndex index.php
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(lib|\.git|design|reference|launcher)(/|$) - [F,L]
+  # pretty routes the launcher uses: /renewal/media  /renewal/comps
+  RewriteRule ^media/?$ media.php [L]
+  RewriteRule ^comps/?$ comps.php [L]
+</IfModule>
+
+<FilesMatch "^(\.gitignore|\.htaccess|CLAUDE\.md|README.*)$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "\.(json|log|lock|sql|md)$">
+  Require all denied
+</FilesMatch>

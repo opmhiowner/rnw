@@ -137,3 +137,36 @@ Open question for Larry: how many letters, and does anything besides status pick
 Pre-work protocol before any build: diagnosis → root cause → versioned fix → time with finish in HST **and**
 PST → "Type start." Never push to GitHub without explicit "push". Zips carry the version in the filename;
 `data/` and live config never ship. Prefix command blocks with app/window context. 3-pane layout for every UI.
+
+## Status — v0.1 built (Sep 19, 2026)
+Built and tested end to end in a container against a seeded copy of Sync Center's tables (8 leases,
+Rentvine-shaped raw records) and a fake Rentvine API: queue rules and SORT.CALC order, record open /
+save / pau / reopen / prepped, comps pin + market check, media cover + description, server-side window
+link, settings, KPI, activity, and the full four-step Rentvine post (find + expire rent charge, new
+recurring charge, SDR ledger charge, Last Renewal Date) including idempotent re-run and the refusal to
+edit a posted row. Screenshots of all three windows checked at 1440×900 and 1920×1080 in display mode.
+README.txt is the operator's guide. Files: `lib/core.php` `lib/sync.php` `lib/rentvine.php`
+`lib/craigslist.php` `api/board.php` `index.php` `media.php` `comps.php` `probe.php` `assets/`
+`launcher/photo-agent.ps1` `.github/workflows/deploy.yml`.
+
+**Assumptions to confirm on first deploy (all adjustable without a redeploy where noted):**
+1. Rentvine key names for rent / endDate / leaseTypeID / securityDeposit / moveOutDate / customFields —
+   read tolerantly in `lease_join()`; `probe.php` shows the live record. Code change if wrong.
+2. Rentvine write endpoints and bodies — Settings › Rentvine (no redeploy). Shipped defaults are a guess;
+   paste from the FileMaker curl commands. Needs the rent and deposit GL account ids and the custom
+   field id.
+3. O.Letter ranges — RANGE TOP/BOTTOM default from comp median (+10 % / −15 %) or current rent
+   (+15 % / −10 %); BASELINE/RENTSTART/RENTDROP are the 60/80/92 % positions. `ranges_for()` in
+   `api/board.php` if the letters need FileMaker's exact formulas.
+4. New deposit = new rent (Settings `deposit_rule`).
+5. Photo folder convention on the drive — `photo-agent.ps1` CONFIG per PC.
+6. SDR = security deposit (confirmed by the write-back description).
+
+**Linked windows:** the launcher runs each window in its own Chrome profile, and separate profiles share
+no BroadcastChannel/localStorage, so the windows link **through the server** (`current_set` /
+`current_get`, polled every 2 s, per signed-in user). BroadcastChannel is still used when windows share a
+profile. This replaces the handoff's BroadcastChannel-only design.
+
+**Not done / parked:** printing (2 trays), bill creation (out of scope), photo upload (files stay on the
+drive), LV report-only offices have no Rentvine write-back (the plan says so instead of failing silently
+— Sync Center marks them `af`).

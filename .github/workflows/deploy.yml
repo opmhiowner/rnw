@@ -1,0 +1,27 @@
+name: Deploy Renewal Center
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+# Rev 2 pattern: one job, one copy. Secrets DO_HOST / DO_USER / DO_SSH_KEY
+# added per repo (same three values as sev / sync / dir).
+# The clone lives at /var/www/apps/renewal so the path matches the URL
+# https://apps.oishis.net/renewal/ . This job is red until that clone exists.
+jobs:
+  deploy-droplet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull on oishi-apps-01
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DO_HOST }}
+          username: ${{ secrets.DO_USER }}
+          key: ${{ secrets.DO_SSH_KEY }}
+          script: |
+            set -e
+            cd /var/www/apps/renewal
+            git pull --ff-only origin main
+            git status --short
+            git log -1 --oneline
