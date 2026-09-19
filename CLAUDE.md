@@ -37,7 +37,7 @@ SORT.CALC categories: -3 ADDON (month processed), -2 DUEDATE>1, -1 RNW SPEC, 1 M
   the routes above.
 - **Display mode** (meeting room / TVs): 135 % type scale, ON by default, per-PC toggle in Settings.
 - **Print is parked** — see "Printing" below. Do not build yet.
-- **Rentvine bill creation / write-back** is v0.2, after the decision flow is proven on real Sync Center data.
+- **Rentvine write-back is v0.1** (see Data). **Bill creation is out of scope entirely.**
 
 ## Design (approved canvas rev 4)
 `design/` holds the three artboards exactly as approved (Design-canvas `.dc.html` format — treat as
@@ -84,8 +84,21 @@ increase green `#15803d`; warning `#b45309`; type IBM Plex Sans + IBM Plex Mono 
 - Photos: `/mnt/media/renewal/<company_id>/<office_id>/<property_id>/`, uploaded in the Media window.
 - Craigslist: build the same search URL FMP built today; cache results per unit 7 days. Datacenter fetches
   may be blocked — the window always offers "Open in Craigslist" as the fallback.
-- **Rentvine write-back** (new rent, deposit, lease renewal, bill creation) is v0.2, through Sync Center's
-  source credentials, never a second copy of the key.
+- **Rentvine write-back — in scope (Larry, Sep 19). Bill creation is NOT.** "Post to Rentvine" on a
+  decided renewal does, in order, and records each step in `renewal_events` with Rentvine's reply:
+  1. **Expire the current rent recurring charge** on the lease (end date = day before the new rent starts).
+  2. **Create a new recurring charge** for rent at the new amount, starting on the increase date.
+  3. **Add a one-time charge to the tenant ledger** for the security-deposit (SDR) increase, when > 0.
+  4. **Update the lease custom field "Last Renewal Date"** to the decision date.
+  Each step is idempotent (the posted Rentvine ids are stored on the queue row; a re-run skips done steps)
+  and the whole thing can be previewed as a dry run before anything is sent. Endpoint URLs and JSON bodies
+  are per-office settings with `{lease_id}` / `{tenant_id}` / `{amount}` / `{date}` placeholders — matched
+  to the working curl commands from the FileMaker scripts, the same way SEV configures its message calls.
+  A "Send test" against a test lease reports exactly what Rentvine said.
+- **Credentials:** reuse Sync Center's — decrypt `sync_sources.credentials_enc` for the office with the
+  `crypto_key_b64` in `/var/www/apps/config/sync.php` (AES-256-GCM, same routine as Sync Center's
+  `core/db.php`). Never a second copy of the key. Fallback if that path is refused: a per-office key in
+  `renewal_settings`, masked in the UI.
 
 ## Printing (parked — for later)
 Letters vary by status (MTM vs Fixed etc.), printed automatically as 2 copies: one white, one pink (two trays).
@@ -102,6 +115,7 @@ Open question for Larry: how many letters, and does anything besides status pick
 | Main window (queue, record, rent + SDR decision, actions) on real data | 2.5 h |
 | Media + Comps windows + BroadcastChannel sync | 1.5 h |
 | Display mode + settings | 0.5 h |
+| Rentvine write-back: expire + new recurring rent charge, SDR ledger charge, Last Renewal Date, dry run, test send | 2 h |
 | Test + `renewal-0.1.zip` | 0.5 h |
 
 ## Team conventions (from project memory)
