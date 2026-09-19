@@ -1,0 +1,16 @@
+# Live config and data never ship (team convention)
+data/
+config.php
+config.local.php
+.env
+*.local.*
+
+# Build / packaging
+*.zip
+node_modules/
+vendor/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp

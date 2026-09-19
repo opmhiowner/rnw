@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Renewal Center — desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;background:#ecebe6;color:#1c1b19}
+a{color:#0f766e}a:hover{color:#115e59}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #ecebe6;">
+<div style="zoom: {{zoom}}; width: {{innerW}}px; height: {{innerH}}px; box-sizing: border-box; display: flex; flex-direction: row; background: #ecebe6; overflow: hidden;">
+
+  <!-- ================= LEFT PANE: RENEWAL QUEUE ================= -->
+  <div style="width: 300px; flex-shrink: 0; box-sizing: border-box; display: flex; flex-direction: column; background: #f7f6f2; border-right: 1px solid #d8d6ce;">
+    <div style="box-sizing: border-box; padding: 16px 16px 12px 16px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid #d8d6ce;">
+      <div style="display: flex; flex-direction: row; align-items: center; justify-content: space-between;">
+        <div style="font-size: 17px; font-weight: 700; letter-spacing: -0.01em;">Renewals</div>
+        <div style="display: flex; flex-direction: row; gap: 4px;">
+          <button aria-label="Hawaii office" style="height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid #0f766e; background: #0f766e; color: #ffffff; font-size: 12px; font-weight: 600;">HI</button>
+          <button aria-label="Las Vegas office" style="height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid #c9c7bf; background: #ffffff; color: #1c1b19; font-size: 12px; font-weight: 600;">LV</button>
+        </div>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);">Search renewals</span>
+        <input type="search" placeholder="Search tenant, property, ID…" style="box-sizing: border-box; width: 100%; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 13px;">
+      </label>
+      <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px;">
+        <sc-for list="{{cats}}" as="c" hint-placeholder-count="6">
+          <button onClick="{{c.pick}}" style="height: 26px; padding: 0 9px; border-radius: 13px; border: 1px solid {{c.border}}; background: {{c.bg}}; color: {{c.fg}}; font-size: 11px; font-weight: 600;">{{c.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="box-sizing: border-box; padding: 8px 16px; font-size: 11px; font-weight: 600; color: #6b6960; text-transform: uppercase; letter-spacing: 0.06em;">{{queueLabel}}</div>
+    <div style="flex-grow: 1; overflow: auto; display: flex; flex-direction: column;">
+      <sc-for list="{{queue}}" as="r" hint-placeholder-count="7">
+        <button onClick="{{r.pick}}" style="box-sizing: border-box; width: 100%; text-align: left; padding: 10px 16px 10px 12px; border: none; border-left: 4px solid {{r.edge}}; border-bottom: 1px solid #e6e4dc; background: {{r.bg}}; display: flex; flex-direction: column; gap: 3px;">
+          <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; font-weight: 600; color: #1c1b19;">{{r.tenant}}</span>
+            <span style="font-size: 11px; font-weight: 600; color: {{r.dueColor}};">{{r.due}}</span>
+          </div>
+          <div style="font-size: 12px; color: #4a4841;">{{r.property}}</div>
+          <div style="display: flex; flex-direction: row; gap: 6px; align-items: center;">
+            <span style="font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: {{r.tagBg}}; color: {{r.tagFg}};">{{r.tag}}</span>
+            <span style="font-size: 11px; color: #6b6960;">Lease end {{r.leaseEnd}}</span>
+          </div>
+        </button>
+      </sc-for>
+    </div>
+    <div style="box-sizing: border-box; padding: 10px 16px; border-top: 1px solid #d8d6ce; font-size: 11px; color: #6b6960; display: flex; flex-direction: row; justify-content: space-between;">
+      <span>7 in queue · sorted by category</span>
+      <span>FMP sync 9:30a</span>
+    </div>
+  </div>
+
+  <!-- ================= CENTER PANE: RECORD ================= -->
+  <div style="flex-grow: 1; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff;">
+    <!-- header -->
+    <div style="box-sizing: border-box; padding: 14px 24px; border-bottom: 1px solid #e6e4dc; display: flex; flex-direction: row; align-items: center; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 2px; flex-grow: 1; min-width: 0;">
+        <div style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
+          <span style="font-size: 20px; font-weight: 700; letter-spacing: -0.01em;">Waialae Place #1204</span>
+          <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6b6960; background: #f1f0eb; padding: 2px 6px; border-radius: 4px;">yy0104</span>
+          <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #dbeafe; color: #1e3a8a;">7 FIXED</span>
+          <span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: #e0e7ff; color: #3730a3;">6 CONDO</span>
+        </div>
+        <div style="font-size: 13px; color: #4a4841;">Owner <strong style="color: #1c1b19;">Ownit / FMO.OWNIT.PM</strong> &nbsp;·&nbsp; Tenant <strong style="color: #1c1b19;">[TENANT NAME]</strong> &nbsp;·&nbsp; 2845 Waialae Ave, Honolulu 96816</div>
+      </div>
+      <label style="display: flex; flex-direction: row; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #1c1b19;">
+        <input type="checkbox" style="width: 18px; height: 18px; margin: 0;"> Revisit
+      </label>
+      <button style="height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 13px; font-weight: 600; color: #1c1b19;">Open in FileMaker</button>
+    </div>
+
+    <!-- body -->
+    <div style="flex-grow: 1; overflow: auto; box-sizing: border-box; padding: 20px 24px; display: flex; flex-direction: column; gap: 18px;">
+
+      <!-- row 1: rent decision + evaluation -->
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;">
+
+        <!-- Rent decision -->
+        <div style="box-sizing: border-box; padding: 16px; border: 1px solid #e6e4dc; border-radius: 12px; background: #fbfaf7; display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+            <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6960;">Rent decision</div>
+            <div style="font-size: 12px; color: #b45309; font-weight: 600;">Renew MTM every 2 years</div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 11px; color: #6b6960;">Current rent</span>
+              <span style="font-size: 22px; font-weight: 700; font-family: 'IBM Plex Mono', monospace;">${{currentRent}}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 11px; color: #6b6960;">New rent <span style="color: #1d4ed8;">(blue = 1st yr)</span></span>
+              <span style="font-size: 22px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: #1d4ed8;">${{newRent}}</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 3px;">
+              <span style="font-size: 11px; color: #6b6960;">% increase</span>
+              <span style="font-size: 22px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; color: #15803d;">{{pct}}%</span>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: row; align-items: center; gap: 8px;">
+            <span style="font-size: 12px; color: #6b6960; width: 64px;">Step</span>
+            <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+              <button onClick="{{s.pick}}" style="height: 34px; min-width: 64px; padding: 0 10px; border-radius: 8px; border: 1px solid {{s.border}}; background: {{s.bg}}; color: {{s.fg}}; font-size: 13px; font-weight: 700; font-family: 'IBM Plex Mono', monospace;">{{s.label}}</button>
+            </sc-for>
+            <div style="flex-grow: 1;"></div>
+            <button onClick="{{dec}}" aria-label="Lower new rent" style="width: 44px; height: 34px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 18px; font-weight: 700; color: #1c1b19;">&lt;</button>
+            <button onClick="{{inc}}" aria-label="Raise new rent" style="width: 44px; height: 34px; border-radius: 8px; border: 1px solid #0f766e; background: #0f766e; font-size: 18px; font-weight: 700; color: #ffffff;">&gt;</button>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding-top: 8px; border-top: 1px dashed #d8d6ce;">
+            <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10px; color: #6b6960;">RANGE TOP</span><span style="font-size: 13px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">$[TOP]</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10px; color: #6b6960;">BASELINE 60%</span><span style="font-size: 13px; font-weight: 600; font-family: 'IBM Plex Mono', monospace;">$[BASE]</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10px; color: #6b6960;">RENTSTART 80%</span><span style="font-size: 13px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; color: #15803d;">$[START]</span></div>
+            <div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-size: 10px; color: #6b6960;">RENTDROP 92%</span><span style="font-size: 13px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; color: #b91c1c;">$[DROP]</span></div>
+          </div>
+        </div>
+
+        <!-- Evaluation + lease -->
+        <div style="display: flex; flex-direction: column; gap: 18px;">
+          <div style="box-sizing: border-box; padding: 16px; border: 1px solid #e6e4dc; border-radius: 12px; background: #fbfaf7; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+              <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6960;">Evaluation</div>
+              <div style="font-size: 12px; color: #4a4841;">Last inspected <strong>[DATE]</strong> by <strong>[NAME]</strong></div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+              <label style="display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #6b6960;">Top<input value="[TOP]" style="box-sizing: border-box; width: 100%; height: 34px; padding: 0 8px; border-radius: 6px; border: 1px solid #c9c7bf; background: #f3e8ff; font-size: 13px;"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #6b6960;">Recom<input value="[RECOM]" style="box-sizing: border-box; width: 100%; height: 34px; padding: 0 8px; border-radius: 6px; border: 1px solid #c9c7bf; background: #f3e8ff; font-size: 13px;"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: #6b6960;">Bottom<input value="[BOTTOM]" style="box-sizing: border-box; width: 100%; height: 34px; padding: 0 8px; border-radius: 6px; border: 1px solid #c9c7bf; background: #f3e8ff; font-size: 13px;"></label>
+            </div>
+          </div>
+          <div style="box-sizing: border-box; padding: 16px; border: 1px solid #e6e4dc; border-radius: 12px; background: #fbfaf7; display: flex; flex-direction: column; gap: 8px;">
+            <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6960;">Lease</div>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 12px; font-size: 12px;">
+              <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">Move in</span><strong>[DATE]</strong></div>
+              <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">Lease end</span><strong>[DATE]</strong></div>
+              <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">Lease yrs</span><strong>[N]</strong></div>
+              <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">Last increase</span><strong>[DATE]</strong></div>
+              <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">Next increase</span><strong>[DATE]</strong></div>
+              <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">Next rent</span><strong>[DATE]</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- row 2: notes -->
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;">
+        <label style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6960;">Renewal notes</span>
+          <textarea placeholder="Notes for this renewal…" style="box-sizing: border-box; width: 100%; height: 76px; padding: 10px; border-radius: 8px; border: 1px solid #c9c7bf; background: #fffbea; font-family: inherit; font-size: 13px; resize: none;"></textarea>
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 6px;">
+          <span style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6960;">Owner / VAOAO alerts</span>
+          <textarea placeholder="Owner instructions, VAOAO, special handling…" style="box-sizing: border-box; width: 100%; height: 76px; padding: 10px; border-radius: 8px; border: 1px solid #f5c6c6; background: #fff1f1; font-family: inherit; font-size: 13px; resize: none;"></textarea>
+        </label>
+      </div>
+
+      <!-- row 3: unit history -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+          <div style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #6b6960;">Same building — rent history</div>
+          <span style="font-size: 12px; color: #6b6960;">11.PF/F.BD.PK.Util</span>
+        </div>
+        <div style="border: 1px solid #e6e4dc; border-radius: 10px; overflow: hidden;">
+          <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1.4fr; gap: 0; padding: 8px 12px; background: #f1f0eb; font-size: 11px; font-weight: 700; color: #6b6960; text-transform: uppercase;">
+            <span>Unit / config</span><span>Rent</span><span>Last incr</span><span>Move in</span><span>Tenant</span>
+          </div>
+          <sc-for list="{{history}}" as="h" hint-placeholder-count="4">
+            <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1.4fr; gap: 0; padding: 8px 12px; border-top: 1px solid #eeede7; background: #eff9ff; font-size: 12px;">
+              <span style="font-weight: 600;">{{h.unit}}</span><span style="font-family: 'IBM Plex Mono', monospace;">{{h.rent}}</span><span>{{h.incr}}</span><span>{{h.movein}}</span><span>{{h.tenant}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= RIGHT PANE: CONTEXT + ACTIONS ================= -->
+  <div style="width: 400px; flex-shrink: 0; box-sizing: border-box; display: flex; flex-direction: column; background: #f7f6f2; border-left: 1px solid #d8d6ce;">
+    <div style="box-sizing: border-box; padding: 12px 16px; border-bottom: 1px solid #d8d6ce; display: flex; flex-direction: column; gap: 8px;">
+      <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #6b6960;">Linked windows · follow this record</div>
+      <div style="display: flex; flex-direction: row; gap: 8px;">
+        <a href="Media.dc.html" style="flex-grow: 1; box-sizing: border-box; height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #a7f3d0; background: #ecfdf5; color: #065f46; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; flex-direction: row; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #15803d;"></span>Media — left monitor</a>
+        <a href="Comps.dc.html" style="flex-grow: 1; box-sizing: border-box; height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid #a7f3d0; background: #ecfdf5; color: #065f46; font-size: 12px; font-weight: 600; text-decoration: none; display: flex; flex-direction: row; align-items: center; gap: 8px;"><span style="width: 8px; height: 8px; border-radius: 4px; background: #15803d;"></span>Comps — right monitor</a>
+      </div>
+    </div>
+
+    <div style="flex-grow: 1; overflow: auto; box-sizing: border-box; padding: 16px; display: flex; flex-direction: column; gap: 14px;">
+      <div style="box-sizing: border-box; padding: 10px 12px; border-radius: 8px; background: #ecfdf5; border: 1px solid #a7f3d0; font-size: 12px; color: #065f46;">Comp median <strong>$[MEDIAN]</strong> · your new rent is <strong>{{pct}}%</strong> over current — details on the Comps window</div>
+
+      <!-- TRACKERS -->
+      <sc-if value="{{showTrack}}" hint-placeholder-val="{{true}}">
+        <div style="box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #e6e4dc; background: #ffffff; display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 13px; font-weight: 700;">Last Tracker</div>
+          <div style="font-size: 12px; color: #4a4841;">[DATE] · [SCANNED BY]</div>
+          <div style="font-size: 11px; color: #6b6960;">If blank, no tracker has been scanned for this unit.</div>
+        </div>
+        <div style="box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #e6e4dc; background: #ffffff; display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 13px; font-weight: 700;">Last SEV</div>
+          <div style="font-size: 12px; color: #4a4841;">SEV.pID [ID] · SEV.IID [ID]</div>
+          <a href="https://apps.oishis.net/sev/" style="font-size: 12px; font-weight: 600;">Open in SEV Center →</a>
+        </div>
+        <div style="box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #e6e4dc; background: #ffffff; display: flex; flex-direction: column; gap: 6px;">
+          <div style="font-size: 13px; font-weight: 700;">Move-out</div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 12px;">
+            <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">D move out</span><strong>[DATE]</strong></div>
+            <div style="display: flex; flex-direction: column;"><span style="color: #6b6960;">T. notice</span><strong>[DATE]</strong></div>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+
+    <!-- action strip -->
+    <div style="box-sizing: border-box; padding: 12px 16px; border-top: 1px solid #d8d6ce; background: #ffffff; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+        <button style="height: 44px; border-radius: 8px; border: 1px solid #b45309; background: #fde68a; color: #1c1b19; font-size: 14px; font-weight: 700;">Prep / Print</button>
+        <button style="height: 44px; border-radius: 8px; border: 1px solid #0f766e; background: #0f766e; color: #ffffff; font-size: 14px; font-weight: 700;">Save → FileMaker</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+        <button style="height: 40px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; color: #1c1b19; font-size: 12px; font-weight: 600;">Pau renewal</button>
+        <button style="height: 40px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; color: #1c1b19; font-size: 12px; font-weight: 600;">KPI</button>
+        <button style="height: 40px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; color: #1c1b19; font-size: 12px; font-weight: 600;">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"display":{"editor":"boolean","default":true,"section":"Display mode (TV / meeting room)"},"accent":{"editor":"color","default":"#0f766e"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tab: 'comps', cat: 'all', sel: 0, newRent: 2200, step: 0.04 };
+  }
+  renderVals() {
+    const zoom = (this.props.display ?? true) ? 1.35 : 1;
+    const innerW = Math.round(1440 / zoom), innerH = Math.round(900 / zoom);
+    const cur = 2115;
+    const nr = this.state.newRent;
+    const pct = (((nr - cur) / cur) * 100).toFixed(1);
+    const sel = this.state.sel;
+    const tabDefs = [['comps','Comps'],['photos','Photos & Desc'],['track','Trackers']];
+    const tabs = tabDefs.map(([id,label]) => ({
+      label,
+      line: this.state.tab === id ? '#0f766e' : 'transparent',
+      fg: this.state.tab === id ? '#0f766e' : '#4a4841',
+      pick: () => this.setState({ tab: id })
+    }));
+    const catDefs = [['all','All'],['addon','-3 Addon'],['due','-2 Due>1'],['rnw','-1 RNW spec'],['mo','1 Moving out'],['new','2 New lease'],['revisit','3 Revisit'],['fixed','7 Fixed'],['mtm','8 MTM']];
+    const cats = catDefs.map(([id,label]) => {
+      const on = this.state.cat === id;
+      return { label, border: on ? '#0f766e' : '#c9c7bf', bg: on ? '#0f766e' : '#ffffff', fg: on ? '#ffffff' : '#1c1b19', pick: () => this.setState({ cat: id }) };
+    });
+    const rows = [
+      { tenant: '[Tenant A]', property: 'Waialae Place #1204', tag: '7 FIXED', tagBg: '#dbeafe', tagFg: '#1e3a8a', leaseEnd: '10/31', due: '42 d', dueColor: '#b45309' },
+      { tenant: '[Tenant B]', property: 'Holiday Village #815', tag: '-2 DUE>1', tagBg: '#fee2e2', tagFg: '#991b1b', leaseEnd: '09/30', due: '11 d', dueColor: '#b91c1c' },
+      { tenant: '[Tenant C]', property: 'Kapiolani Manor #2B', tag: '3 REVISIT', tagBg: '#fef3c7', tagFg: '#92400e', leaseEnd: '11/15', due: '57 d', dueColor: '#6b6960' },
+      { tenant: '[Tenant D]', property: '1234 Kaimuki St', tag: '8 MTM', tagBg: '#e5e7eb', tagFg: '#374151', leaseEnd: 'MTM', due: '2 yr mark', dueColor: '#b45309' },
+      { tenant: '[Tenant E]', property: 'Ala Wai Plaza #1701', tag: '-1 RNW SPEC', tagBg: '#fee2e2', tagFg: '#991b1b', leaseEnd: '10/15', due: '26 d', dueColor: '#b45309' },
+      { tenant: '[Tenant F]', property: 'Makiki Towers #402', tag: '5 NO INCR', tagBg: '#e5e7eb', tagFg: '#374151', leaseEnd: '12/01', due: '73 d', dueColor: '#6b6960' },
+      { tenant: '[Tenant G]', property: 'Kahala Beach #A12', tag: '1 MOVING OUT', tagBg: '#fee2e2', tagFg: '#991b1b', leaseEnd: '09/30', due: '11 d', dueColor: '#b91c1c' }
+    ];
+    const queue = rows.map((r, i) => ({ ...r, bg: i === sel ? '#e6f4f1' : 'transparent', edge: i === sel ? '#0f766e' : 'transparent', pick: () => this.setState({ sel: i }) }));
+    const steps = [0.02, 0.04, 0.06, 0.08].map((s) => {
+      const on = this.state.step === s;
+      return { label: (s * 100) + '%', border: on ? '#0f766e' : '#c9c7bf', bg: on ? '#0f766e' : '#ffffff', fg: on ? '#ffffff' : '#1c1b19', pick: () => this.setState({ step: s, newRent: Math.round(cur * (1 + s)) }) };
+    });
+    return {
+      zoom, innerW, innerH,
+      tabs, cats, queue, steps,
+      queueLabel: this.state.cat === 'all' ? 'All categories · zip › pcode' : 'Filtered · zip › pcode',
+      currentRent: cur.toLocaleString(),
+      newRent: nr.toLocaleString(),
+      pct,
+      inc: () => this.setState({ newRent: nr + 25 }),
+      dec: () => this.setState({ newRent: Math.max(cur, nr - 25) }),
+      showTrack: true,
+      history: [
+        { unit: '#1204 · 2/1 · 1 pk', rent: '$2,115', incr: '[DATE]', movein: '[DATE]', tenant: '[Tenant A]' },
+        { unit: '#1108 · 2/1 · 1 pk', rent: '$[RENT]', incr: '[DATE]', movein: '[DATE]', tenant: '[NAME]' },
+        { unit: '#0904 · 2/1 · 1 pk', rent: '$[RENT]', incr: '[DATE]', movein: '[DATE]', tenant: '[NAME]' },
+        { unit: '#0612 · 2/1 · 1 pk', rent: '$[RENT]', incr: '[DATE]', movein: '[DATE]', tenant: '[NAME]' }
+      ],
+      comps: [
+        { price: '$[PRICE]', age: '[N] days ago', title: '[Comp listing title]', meta: '2br / 1ba · [SQFT] ft² · Kaimuki' },
+        { price: '$[PRICE]', age: '[N] days ago', title: '[Comp listing title]', meta: '2br / 1ba · [SQFT] ft² · Moiliili' },
+        { price: '$[PRICE]', age: '[N] days ago', title: '[Comp listing title]', meta: '2br / 1ba · [SQFT] ft² · Kapahulu' }
+      ],
+      photos: [1,2,3,4,5,6,7,8,9,10,11,12].map((n) => ({ label: 'Image ' + n }))
+    };
+  }
+}
+</script>
+</body>
+</html>

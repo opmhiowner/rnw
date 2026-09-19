@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Renewal Center — Media window (left monitor)</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;background:#ecebe6;color:#1c1b19}
+a{color:#0f766e}a:hover{color:#115e59}
+button{font-family:inherit;cursor:pointer}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; overflow: hidden; background: #ecebe6;">
+<div style="zoom: {{zoom}}; width: {{innerW}}px; height: {{innerH}}px; box-sizing: border-box; display: flex; flex-direction: column; background: #ffffff; overflow: hidden;">
+  <!-- follow bar -->
+  <div style="box-sizing: border-box; height: 56px; padding: 0 24px; border-bottom: 1px solid #e6e4dc; background: #f7f6f2; display: flex; flex-direction: row; align-items: center; gap: 14px;">
+    <span style="width: 10px; height: 10px; border-radius: 5px; background: #15803d;"></span>
+    <span style="font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #065f46;">Following main window</span>
+    <span style="font-size: 16px; font-weight: 700;">Waialae Place #1204</span>
+    <span style="font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #6b6960; background: #ecebe6; padding: 2px 6px; border-radius: 4px;">yy0104</span>
+    <span style="font-size: 12px; color: #4a4841;">2845 Waialae Ave · 2/1 · 607 ft² · 1 pk</span>
+    <div style="flex-grow: 1;"></div>
+    <a href="Main.dc.html" style="font-size: 12px; font-weight: 600;">Back to main</a>
+  </div>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: row; min-height: 0;">
+    <!-- LEFT: photo grid -->
+    <div style="width: 300px; flex-shrink: 0; box-sizing: border-box; padding: 16px; border-right: 1px solid #e6e4dc; background: #f7f6f2; display: flex; flex-direction: column; gap: 10px; overflow: auto;">
+      <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+        <span style="font-size: 13px; font-weight: 700;">Photos · 12</span>
+        <button style="height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 12px; font-weight: 600;">Upload</button>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;">
+        <sc-for list="{{photos}}" as="p" hint-placeholder-count="12">
+          <button onClick="{{p.pick}}" aria-label="{{p.label}}" style="aspect-ratio: 4 / 3; border-radius: 6px; border: 3px solid {{p.ring}}; background: #d8d6ce; font-size: 11px; color: #4a4841; padding: 0;">{{p.label}}</button>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- CENTER: big photo -->
+    <div style="flex-grow: 1; min-width: 0; box-sizing: border-box; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="flex-grow: 1; border-radius: 12px; background: #3f3e3a; display: flex; align-items: center; justify-content: center; color: #ffffff; font-size: 20px; font-weight: 600;">{{bigLabel}}</div>
+      <div style="display: flex; flex-direction: row; align-items: center; gap: 10px;">
+        <button onClick="{{prev}}" aria-label="Previous photo" style="width: 44px; height: 40px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 18px; font-weight: 700;">&lt;</button>
+        <button onClick="{{next}}" aria-label="Next photo" style="width: 44px; height: 40px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 18px; font-weight: 700;">&gt;</button>
+        <span style="font-size: 12px; color: #6b6960;">{{counter}} · taken [DATE] · last SEV [DATE]</span>
+        <div style="flex-grow: 1;"></div>
+        <button style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 13px; font-weight: 600;">Set as cover</button>
+        <a href="https://apps.oishis.net/sev/" style="height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid #0f766e; background: #ffffff; font-size: 13px; font-weight: 600; text-decoration: none; display: flex; align-items: center;">Open SEV video</a>
+      </div>
+    </div>
+
+    <!-- RIGHT: description -->
+    <div style="width: 420px; flex-shrink: 0; box-sizing: border-box; padding: 20px; border-left: 1px solid #e6e4dc; background: #f7f6f2; display: flex; flex-direction: column; gap: 12px; overflow: auto;">
+      <div style="display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+        <span style="font-size: 13px; font-weight: 700;">Listing description</span>
+        <button style="height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid #c9c7bf; background: #ffffff; font-size: 12px; font-weight: 600;">Edit</button>
+      </div>
+      <div style="font-size: 13px; line-height: 1.55; display: flex; flex-direction: column; gap: 8px;">
+        <p style="margin: 0;">1. Waialae Place is a charming 2 bedroom 1 bath apartment located at the edge of Kaimuki and Moiliili. This partly furnished unit consists of approximately 607 square feet plus lanai and one parking stall.</p>
+        <p style="margin: 0;">2. The condominium address is 2845 Waialae Avenue. Waialae Place is located conveniently near Market City Shopping Center, The University of Hawaii and nearby an array of dining and entertainment options.</p>
+        <p style="margin: 0;">3. This unit has a kitchen complete with refrigerator, range, and disposal. Air conditioning for your comfort is also located in the living room. Amenities for this building include a swimming pool, BBQ area, elevator, coin laundry and visitor parking.</p>
+        <p style="margin: 0;">4. Rent for this unit includes water and sewer. Electricity and TV cable are tenant's expense.</p>
+        <p style="margin: 0;">5. Drive north on Kapiolani Boulevard till it meets Waialae Avenue. At the traffic light, turn left and stay in your far left lane. Waialae Place will be on your left. Go up the ramp and park in visitor parking. Wait at the entrance of the pool area for our rental agent.</p>
+        <p style="margin: 0;">6. Once again, the address is 2845 Waialae Avenue.</p>
+      </div>
+      <div style="margin-top: auto; box-sizing: border-box; padding: 10px 12px; border-radius: 8px; background: #fffbea; border: 1px solid #fde68a; font-size: 12px; color: #713f12;">Pulled from FMP listing text. Edits save back to FileMaker.</div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"display":{"editor":"boolean","default":true,"section":"Display mode (TV / meeting room)"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { i: 0 }; }
+  renderVals() {
+    const zoom = (this.props.display ?? true) ? 1.35 : 1;
+    const innerW = Math.round(1440 / zoom), innerH = Math.round(900 / zoom);
+    const n = 12;
+    const i = this.state.i;
+    return {
+      zoom, innerW, innerH,
+      photos: Array.from({ length: n }, (_, k) => ({ label: 'Image ' + (k + 1), ring: k === i ? '#0f766e' : 'transparent', pick: () => this.setState({ i: k }) })),
+      bigLabel: 'Image ' + (i + 1),
+      counter: (i + 1) + ' of ' + n,
+      prev: () => this.setState({ i: (i + n - 1) % n }),
+      next: () => this.setState({ i: (i + 1) % n })
+    };
+  }
+}
+</script>
+</body>
+</html>
