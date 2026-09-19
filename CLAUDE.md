@@ -4,6 +4,12 @@ Web replacement for the OISHI FileMaker "center" renewal database. PHP 8 + vanil
 DigitalOcean droplet, Hub session auth, deployed like the other portfolio apps (`opmhiowner/<app>` repo,
 DO-only `deploy.yml`). Target URL: `https://apps.oishis.net/renewal/`.
 
+**Sep 19 (Larry, after handoff): completely web app, no FileMaker at all.** The renewal queue comes from
+Sync Center's Rentvine mirror (`sync_records`, `sync_leases` on oishi-db), decisions live in this app's own
+tables, and nothing is read from or written to FileMaker. The FileMaker screenshots in `reference/` are the
+layout reference only. Sections below that still say "FileMaker" / "FMP" are the original handoff text;
+the "Data (revised)" section wins wherever they disagree.
+
 ## What exists today (FileMaker)
 Opening the renewal FMP file auto-places **three windows on three monitors**:
 1. **center** — the input screen (screenshot `reference/fmp-center.png`): owner/tenant, SORT.CALC category,
@@ -25,13 +31,13 @@ SORT.CALC categories: -3 ADDON (month processed), -2 DUEDATE>1, -1 RNW SPEC, 1 M
 - **Main drives the others.** Main publishes `{record_id, rent_proposal}` on `BroadcastChannel('renewal')`
   on every navigation (queue click, Next/Prev, `←`/`→` keys). Media and Comps subscribe and reload; they
   also read the last record from `localStorage` on load so a reopened window lands on the right record.
-  `Enter` on Main = Save → FileMaker.
+  `Enter` on Main = Save (to this app's `renewal_queue`).
 - **Auto-placement** = the launcher in `launcher/` (Chrome `--app` windows, one per monitor, `--start-fullscreen`,
   separate `--user-data-dir` per window). Install on every PC and the meeting room. URLs already point at
   the routes above.
 - **Display mode** (meeting room / TVs): 135 % type scale, ON by default, per-PC toggle in Settings.
 - **Print is parked** — see "Printing" below. Do not build yet.
-- **Rentvine bill creation** is v0.2, after FMP write-back is proven.
+- **Rentvine bill creation / write-back** is v0.2, after the decision flow is proven on real Sync Center data.
 
 ## Design (approved canvas rev 4)
 `design/` holds the three artboards exactly as approved (Design-canvas `.dc.html` format — treat as
@@ -47,15 +53,39 @@ templating, replace with PHP/JS). Layout:
 Palette: ground `#ecebe6` / panes `#f7f6f2` / white cards; accent teal `#0f766e`; 1st-year blue `#1d4ed8`;
 increase green `#15803d`; warning `#b45309`; type IBM Plex Sans + IBM Plex Mono for money.
 
-## Data
-- Source of truth stays FileMaker for v0.1: read/write via **FileMaker Data API** (needs fmrest privilege on
-  a dedicated account; rotate the existing Rentvine key embedded in FMP curl fields while there).
-- Fields to write back: New Rent, %INC, evaluation Top/Recom/Bottom, Revisit flag, notes, pinned comps,
-  printed-stamp. Everything else read-only in v0.1.
-- Cache the queue in MySQL (`renewal_queue`, `company_id` + `office_id` per portfolio convention;
-  `tenant_id` is reserved for renters, never offices) and refresh from FMP on a cron + on Save.
-- Photos: `/mnt/media/renewal/<company_id>/<office_id>/<property_id>/`.
-- Craigslist: build the same search URL FMP builds today; cache results per unit 7 days.
+## Data (revised Sep 19 — no FileMaker)
+- **Source of leases = Sync Center.** Same oishi-db, read directly (the way SEV Center reads `sync_leases`):
+  - `sync_leases` — the index: external_id (Rentvine lease id), property_ref, unit_ref, tenant_names,
+    phones, emails, start_date, status, `raw` (index row with tenant_id / property_id / unit_id / owner_id /
+    portfolio_id / legacy code). **rent and end_date are NULL in the index** — do not rely on them.
+  - `sync_records` — the full Rentvine records per feed (`leases`, `units`, `properties`, `owners`,
+    `tenants`, `portfolios`), `raw` JSON keyed by external_id. Rent, lease end, lease type (fixed / MTM),
+    security deposit and move-out come from the `leases` feed record; bed/bath/sqft/parking from `units`;
+    address and property code from `properties`; owner name from `owners`. Field names are read
+    tolerantly (list of candidate keys, like SEV's mappers) and `probe.php` shows one raw record so the
+    mapping is confirmed against live data on first deploy.
+  - Never write to `sync_*`. Never read via HTTP when the table is on the same DB.
+- **Queue = leases that need a review.** A lease qualifies when any of: lease end within the review window
+  (default 90 days, per-office setting), month-to-month past the last increase by N months (default 24,
+  the "Renew MTM every 2 years" rule), no increase in N months, or a manual Revisit flag. SORT.CALC
+  categories are computed from these rules, not stored: -3 ADDON (processed this month), -2 DUEDATE>1,
+  -1 RNW SPEC, 1 MOVING OUT (move-out date set), 2 NEW LEASE (1st year), 3 REVISIT, 4 OA, 5 NO INCREASE,
+  7 FIXED, 8 MTM. Sorted within category by zip > pcode.
+- **Decisions live here** (`company_id` + `office_id` on every row; `tenant_id` is reserved for renters):
+  - `renewal_queue` — one row per lease per review cycle: lease external_id, snapshot of the lease fields
+    used for the decision, current rent, new rent, %INC, evaluation Top/Recom/Bottom, **rent adjustment**
+    and **security-deposit (SDR) adjustment** (new deposit, delta), revisit flag, notes, VAOAO/owner alerts,
+    status (open / pau / printed), pinned comps JSON, decided_by, decided_at.
+  - `renewal_settings` — per-office key/value (review window, MTM months, step %, display mode default).
+  - `renewal_events` — every action with who did it (SEV pattern).
+  - `renewal_media` — photo slots (1–12, cover flag) and the listing description per property/unit.
+- Refresh: the queue is recomputed from `sync_*` on page load (cheap: one office's active leases) and the
+  decision row is created lazily on first open. No cron needed for v0.1.
+- Photos: `/mnt/media/renewal/<company_id>/<office_id>/<property_id>/`, uploaded in the Media window.
+- Craigslist: build the same search URL FMP built today; cache results per unit 7 days. Datacenter fetches
+  may be blocked — the window always offers "Open in Craigslist" as the fallback.
+- **Rentvine write-back** (new rent, deposit, lease renewal, bill creation) is v0.2, through Sync Center's
+  source credentials, never a second copy of the key.
 
 ## Printing (parked — for later)
 Letters vary by status (MTM vs Fixed etc.), printed automatically as 2 copies: one white, one pink (two trays).
@@ -67,8 +97,9 @@ Open question for Larry: how many letters, and does anything besides status pick
 ## Build order / estimates (v0.1)
 | Step | Est |
 |---|---|
-| FMP Data API read of renewal set + write-back | 2 h |
-| Main window (queue, record, actions) on real data | 2.5 h |
+| Core (Hub session, DB, self-heal schema, deploy.yml) — SEV pattern | 0.5 h |
+| Sync Center reader: lease + unit + property + owner join, queue rules, SORT.CALC, probe.php | 2 h |
+| Main window (queue, record, rent + SDR decision, actions) on real data | 2.5 h |
 | Media + Comps windows + BroadcastChannel sync | 1.5 h |
 | Display mode + settings | 0.5 h |
 | Test + `renewal-0.1.zip` | 0.5 h |
