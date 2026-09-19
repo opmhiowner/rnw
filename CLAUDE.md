@@ -81,7 +81,21 @@ increase green `#15803d`; warning `#b45309`; type IBM Plex Sans + IBM Plex Mono 
   - `renewal_media` — photo slots (1–12, cover flag) and the listing description per property/unit.
 - Refresh: the queue is recomputed from `sync_*` on page load (cheap: one office's active leases) and the
   decision row is created lazily on first open. No cron needed for v0.1.
-- Photos: `/mnt/media/renewal/<company_id>/<office_id>/<property_id>/`, uploaded in the Media window.
+- **Photos stay on the office network drives (Larry, Sep 19)** — nothing is copied to the droplet.
+  A browser page on `https://apps.oishis.net` cannot open `\\server\share` or `file://` paths, and Chrome
+  blocks plain-HTTP images on an HTTPS page, **but `http://localhost` counts as a secure origin**. So:
+  - `launcher/photo-agent.ps1` — a tiny read-only HTTP listener on `http://localhost:8765/` (Windows
+    `HttpListener`, no install) that serves files under the mapped photo root and answers
+    `/list?pcode=<code>` with the image names for that property (JSON, CORS `*`). Started by
+    `launch-renewal.ps1` before the three windows; skipped if already running.
+  - Media window loads `http://localhost:8765/<path>` for the 12 slots; a PC without the agent or the
+    drive shows "Photo agent not running on this PC" and the rest of the window still works.
+  - Per-PC settings (localStorage, Settings on Main): agent URL, photo root pattern with `{pcode}`
+    (default `\\server\photos\{pcode}` — **confirm the real convention with Larry**), sort order.
+  - Cover-photo choice, slot order and the listing description are the app's data (`renewal_media` on
+    oishi-db, keyed by property); the files themselves are never stored by the app.
+  - The same agent is the natural home for the parked two-tray print job later.
+  - No Upload in v0.1 — staff keep dropping files on the drive as they do today.
 - Craigslist: build the same search URL FMP built today; cache results per unit 7 days. Datacenter fetches
   may be blocked — the window always offers "Open in Craigslist" as the fallback.
 - **Rentvine write-back — in scope (Larry, Sep 19). Bill creation is NOT.** "Post to Rentvine" on a
@@ -114,6 +128,7 @@ Open question for Larry: how many letters, and does anything besides status pick
 | Sync Center reader: lease + unit + property + owner join, queue rules, SORT.CALC, probe.php | 2 h |
 | Main window (queue, record, rent + SDR decision, actions) on real data | 2.5 h |
 | Media + Comps windows + BroadcastChannel sync | 1.5 h |
+| Photo agent (localhost listener on the network drive) + launcher hook | 0.5 h |
 | Display mode + settings | 0.5 h |
 | Rentvine write-back: expire + new recurring rent charge, SDR ledger charge, Last Renewal Date, dry run, test send | 2 h |
 | Test + `renewal-0.1.zip` | 0.5 h |
