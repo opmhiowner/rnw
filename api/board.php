@@ -29,6 +29,12 @@ function default_increase_date(array $L): string {
     return date('Y-m-01', strtotime('+1 month'));
 }
 
+// new lease end for a fixed-term renewal: one year from the rent start, less a day (MTM: none)
+function default_new_lease_end(array $L, string $increaseDate): ?string {
+    if ($L['mtm']) { return null; }
+    return date('Y-m-d', strtotime($increaseDate . ' +1 year -1 day'));
+}
+
 function new_deposit_for(?float $newRent, ?float $curDeposit): ?float {
     $rule = (string)knob('deposit_rule');
     if ($rule === 'match_rent') { return $newRent; }
@@ -48,13 +54,13 @@ function q_open(array $L): array {
            (company_id, office_id, lease_id, cycle, status,
             lease_tenant, lease_property, lease_unit, lease_pcode, lease_zip, lease_rent, lease_deposit,
             lease_start, lease_end, lease_mtm,
-            current_rent, new_rent, pct_inc, step_pct, increase_date, current_deposit, new_deposit, sdr_delta, decided_by)
-         VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?)
+            current_rent, new_rent, pct_inc, step_pct, increase_date, new_lease_end, current_deposit, new_deposit, sdr_delta, decided_by)
+         VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)")
         ->execute([cid(), oid(), $L['lease_id'], cycle_now(),
                    $L['tenant'], $L['property'], $L['unit'], $L['pcode'], $L['zip'], $rent, $dep,
                    $L['start'], $L['end'], $L['mtm'] ? 1 : 0,
-                   $rent, $rent, default_increase_date($L), $dep, new_deposit_for($rent, $dep),
+                   $rent, $rent, default_increase_date($L), default_new_lease_end($L, default_increase_date($L)), $dep, new_deposit_for($rent, $dep),
                    $dep !== null && $rent !== null ? max(0, (float)new_deposit_for($rent, $dep) - $dep) : null,
                    $me['key'] ?? 'system']);
     $q = q_row($L['lease_id']);
@@ -153,17 +159,19 @@ case 'save': {
     $sdr = ($newDep !== null && $curDep !== null) ? max(0.0, $newDep - $curDep) : ($newDep !== null && $curDep === null ? null : 0.0);
     $incDate = $str('increase_date');
     if ($incDate !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $incDate)) { $ts = strtotime($incDate); $incDate = $ts ? date('Y-m-d', $ts) : null; }
+    $newEnd = $str('new_lease_end');
+    if ($newEnd !== null && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $newEnd)) { $ts = strtotime($newEnd); $newEnd = $ts ? date('Y-m-d', $ts) : null; }
     $catOv = array_key_exists('category_override', $in) ? ($in['category_override'] === '' || $in['category_override'] === null ? null : (int)$in['category_override']) : $q['category_override'];
     $pinned = array_key_exists('pinned_comps', $in) ? json_encode((array)$in['pinned_comps'], JSON_UNESCAPED_SLASHES) : $q['pinned_comps'];
     $median = array_key_exists('pinned_comps', $in) ? cl_median(array_column((array)$in['pinned_comps'], 'price')) : ($q['comp_median'] !== null ? (float)$q['comp_median'] : null);
     db()->prepare(
-        "UPDATE renewal_queue SET current_rent = ?, new_rent = ?, pct_inc = ?, step_pct = ?, increase_date = ?,
+        "UPDATE renewal_queue SET current_rent = ?, new_rent = ?, pct_inc = ?, step_pct = ?, increase_date = ?, new_lease_end = ?,
             current_deposit = ?, new_deposit = ?, sdr_delta = ?, range_top = ?, range_bottom = ?,
             eval_top = ?, eval_recom = ?, eval_bottom = ?, notes = ?, vaoao = ?,
             revisit = ?, special = ?, oa = ?, no_increase = ?, category_override = ?,
             pinned_comps = ?, comp_median = ?, decided_by = ?, decided_at = NOW()
          WHERE id = ?")
-        ->execute([$cur, $new, $pct, $num('step_pct'), $incDate,
+        ->execute([$cur, $new, $pct, $num('step_pct'), $incDate, $newEnd,
                    $curDep, $newDep, $sdr, $num('range_top'), $num('range_bottom'),
                    $str('eval_top'), $str('eval_recom'), $str('eval_bottom'), $str('notes'), $str('vaoao'),
                    $flag('revisit'), $flag('special'), $flag('oa'), $flag('no_increase'), $catOv,

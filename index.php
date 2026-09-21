@@ -72,8 +72,9 @@ $me = require_login();
               <button class="btn arrow" id="dec" aria-label="Lower new rent">&lt;</button>
               <button class="btn arrow pri" id="inc" aria-label="Raise new rent">&gt;</button>
             </div>
-            <div class="grid4 dep-row">
+            <div class="grid5 dep-row">
               <div class="fld"><span>Rent starts</span><input class="in sm" id="f-increase-date" type="date"></div>
+              <div class="fld"><span>New lease end</span><input class="in sm" id="f-new-lease-end" type="date" title="Fixed term: one year from rent start less a day. Blank for MTM. Sent to Rentvine only when Settings › rv_update_lease_end is on."></div>
               <div class="fld"><span>Current deposit</span><span class="row" style="gap:2px"><span class="mono">$</span><input class="in sm mono" id="f-cur-dep"></span></div>
               <div class="fld"><span>New deposit</span><span class="row" style="gap:2px"><span class="mono">$</span><input class="in sm mono" id="f-new-dep"></span></div>
               <div class="fld"><span><strong>SDR increase</strong></span><span class="money red" style="font-size:18px;line-height:34px" id="sdr">—</span></div>
@@ -258,6 +259,7 @@ $me = require_login();
     $('cur-rent').textContent = fmt.money(q.current_rent);
     $('f-new-rent').value = q.new_rent !== null ? Number(q.new_rent).toFixed(0) : '';
     $('f-increase-date').value = q.increase_date || '';
+    $('f-new-lease-end').value = q.new_lease_end || '';
     $('f-cur-dep').value = q.current_deposit !== null ? Number(q.current_deposit).toFixed(0) : '';
     $('f-new-dep').value = q.new_deposit !== null ? Number(q.new_deposit).toFixed(0) : '';
     $('f-range-top').value = R.auto ? '' : Number(R.top).toFixed(0); $('f-range-top').placeholder = Number(R.top).toFixed(0);
@@ -319,11 +321,11 @@ $me = require_login();
   $('dec').onclick = () => { $('f-new-rent').value = Math.max(0, Math.round(Number($('f-new-rent').value || 0) - S.rec.step_dollars)); recalc(true); };
   ['f-new-rent', 'f-cur-dep', 'f-range-top', 'f-range-bottom'].forEach(id => $(id).addEventListener('input', () => recalc(true)));
   $('f-new-dep').addEventListener('input', () => { $('f-new-dep').dataset.auto = 'off'; recalc(true); });
-  ['f-increase-date', 'f-eval-top', 'f-eval-recom', 'f-eval-bottom', 'f-notes', 'f-vaoao', 'f-revisit', 'f-special', 'f-oa', 'f-no-increase', 'f-cat-override']
+  ['f-increase-date', 'f-new-lease-end', 'f-eval-top', 'f-eval-recom', 'f-eval-bottom', 'f-notes', 'f-vaoao', 'f-revisit', 'f-special', 'f-oa', 'f-no-increase', 'f-cat-override']
     .forEach(id => $(id).addEventListener('change', markDirty));
 
   function collect() {
-    return { lease_id: S.sel, new_rent: $('f-new-rent').value, step_pct: S.rec.q.step_pct, increase_date: $('f-increase-date').value,
+    return { lease_id: S.sel, new_rent: $('f-new-rent').value, step_pct: S.rec.q.step_pct, increase_date: $('f-increase-date').value, new_lease_end: $('f-new-lease-end').value,
       current_deposit: $('f-cur-dep').value, new_deposit: $('f-new-dep').value,
       range_top: $('f-range-top').value, range_bottom: $('f-range-bottom').value,
       eval_top: $('f-eval-top').value, eval_recom: $('f-eval-recom').value, eval_bottom: $('f-eval-bottom').value,
@@ -497,8 +499,9 @@ $me = require_login();
         ${f('rv_expire_url', 'Expire charge URL')}${f('rv_expire_method', 'method')}${f('rv_expire_body', 'body')}
         ${f('rv_create_url', 'Create recurring charge URL')}${f('rv_create_method', 'method')}${f('rv_create_body', 'body')}
         ${f('rv_sdr_url', 'Ledger charge URL')}${f('rv_sdr_method', 'method')}${f('rv_sdr_body', 'body')}
+        ${f('rv_update_lease_end', 'Also move the lease end date (1 = yes, 0 = no)')}${f('rv_leaseend_url', 'Lease end URL')}${f('rv_leaseend_method', 'method')}${f('rv_leaseend_body', 'body')}
         ${f('rv_custom_url', 'Custom field URL')}${f('rv_custom_method', 'method')}${f('rv_custom_body', 'body')}</div>
-      <div class="muted" style="font-size:11px">Placeholders: {base} {lease_id} {tenant_id} {property_id} {unit_id} {charge_id} {amount} {start_date} {end_date} {date} (ISO) {start_date_us} {end_date_us} {date_us} (MM/DD/YYYY, what Rentvine's UI sends) {rent_account_id} {deposit_account_id} {custom_field_id}. <strong>verified</strong> = confirmed against a working Rentvine client (base URL, Basic auth, the reads). <strong>unverified</strong> = shaped after those reads; confirm in the Rentvine API docs (docs.rentvine.com) before the first real post. "Send test" on a record lists the lease's recurring charges and the rent / deposit GL accounts so the ids above can be filled from what Rentvine actually returns.</div>
+      <div class="muted" style="font-size:11px">Placeholders: {base} {lease_id} {tenant_id} {property_id} {unit_id} {charge_id} {amount} {start_date} {end_date} {date} (ISO) {start_date_us} {end_date_us} {date_us} (MM/DD/YYYY, what Rentvine's UI sends) {rent_account_id} {deposit_account_id} {custom_field_id} {day_due} (from the existing rent charge) {lease_end} {lease_end_us}. <strong>verified</strong> = confirmed against a working Rentvine client (base URL, Basic auth, the reads). <strong>unverified</strong> = shaped after those reads; confirm in the Rentvine API docs (docs.rentvine.com) before the first real post. "Send test" on a record lists the lease's recurring charges and the rent / deposit GL accounts so the ids above can be filled from what Rentvine actually returns.</div>
       <div class="row" style="justify-content:flex-end"><button class="btn" id="m-close">Cancel</button><button class="btn pri" id="m-save">Save settings</button></div>`);
     $('m-close').onclick = closeModal;
     $('m-save').onclick = async () => {

@@ -35,7 +35,7 @@ html[data-display="on"] .pane.left  { width:270px; }
 html[data-display="on"] .pane.right { width:340px; }
 /* the record body measures itself (ResizeObserver in index.php) and sets these classes */
 .narrow .grid2 { grid-template-columns:minmax(0,1fr); }
-.tight .grid4.dep-row, .tight .grid5 { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.tight .grid4.dep-row, .tight .grid5.dep-row, .tight .grid5 { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .tight .grid3.money-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .pane .head { padding:16px 16px 12px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:10px; }
 .pane .body { flex:1; overflow:auto; min-height:0; }

@@ -167,6 +167,16 @@ POST TO RENTVINE  (bills are NEVER created)
   The custom-field URL is verified from FileMaker's MODIFY.LEASE.URL:
   POST /custom-fields/values/4/{leaseID}  (4 = object type Lease).
 
+  Also carried over from FileMaker (P.RCHG fields, Sep 21):
+  - dayDue on the new rent charge = the day of the existing rent
+    charge (FileMaker's DUE), not a fixed 1st.
+  - OPTIONAL 5th step "lease end date": FileMaker's MODIFY.LEASEend
+    posts {"endDate": ...} to /leases/{leaseID}. Off by default
+    (Settings > rv_update_lease_end = 1 turns it on). The record has a
+    "New lease end" field, defaulting to one year from the rent start
+    less a day for fixed terms, blank for MTM. CONFIRM THE RULE with
+    the office before turning it on.
+
   WHAT IS NOT (marked "unverified" in Settings): only the URL the
   one-time deposit charge posts to. Default is /leases/{id}/charges.
   The FileMaker script's "Insert from URL" line for ASD.CHG settles
