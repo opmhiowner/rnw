@@ -38,9 +38,12 @@ declare(strict_types=1);
 //   bodies ({"accountID":...} to modify, {"endDate":...} to end = our EXPIRE step).
 //   One-time charge bodies (CURL.POST.ASD.CHG / RENT.CHG) start {"datePosted":...,
 //   "amount":...}; create-recurring (CURL.POST.RCR) starts {"accountID":...}.
-// STILL UNVERIFIED: the URL for create-recurring and for the one-time (ASD)
-//   charge, the full bodies, and the custom-field call. Confirm in Settings
-//   (paste the full CURL.* calculation text) before the first real post.
+// VERIFIED from a captured Rentvine web-UI request (Larry, Sep 21):
+//   POST /leases/{leaseID}/recurring-charges  200 OK  with body
+//   {"accountID":"16","amount":"1.00","dayDue":1,"description":"test","endDate":null,
+//    "frequency":1,"startDate":"09/21/2026"}  - dates are MM/DD/YYYY, amounts strings.
+// STILL UNVERIFIED: the URL + full body of the one-time (deposit) charge and
+//   the custom-field call. Confirm in Settings before the first real post.
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
@@ -48,13 +51,13 @@ function rv_templates_default(): array {
         'rv_rent_match'         => 'rent',            // fallback only: account.isRent wins when present
         'rv_expire_url'         => '{base}/leases/{lease_id}/recurring-charges/{charge_id}',
         'rv_expire_method'      => 'POST',
-        'rv_expire_body'        => '{"endDate":"{end_date}"}',
+        'rv_expire_body'        => '{"endDate":"{end_date_us}"}',
         'rv_create_url'         => '{base}/leases/{lease_id}/recurring-charges',
         'rv_create_method'      => 'POST',
-        'rv_create_body'        => '{"accountID":{rent_account_id},"amount":{amount},"startDate":"{start_date}","description":"Rent","frequencyID":1}',
+        'rv_create_body'        => '{"accountID":"{rent_account_id}","amount":"{amount}","dayDue":1,"description":"Rent","endDate":null,"frequency":1,"startDate":"{start_date_us}"}',
         'rv_sdr_url'            => '{base}/leases/{lease_id}/charges',
         'rv_sdr_method'         => 'POST',
-        'rv_sdr_body'           => '{"datePosted":"{date}","amount":{amount},"accountID":{deposit_account_id},"description":"Security deposit increase"}',
+        'rv_sdr_body'           => '{"datePosted":"{date_us}","amount":"{amount}","accountID":"{deposit_account_id}","description":"Security deposit increase"}',
         'rv_custom_url'         => '{base}/leases/{lease_id}',
         'rv_custom_method'      => 'POST',
         'rv_custom_body'        => '{"customFields":[{"customFieldID":{custom_field_id},"value":"{date}"}]}',
@@ -68,7 +71,7 @@ function rv_templates_default(): array {
 function rv_verified(): array {
     return ['rv_charges_list_url' => true, 'rv_charges_list_method' => true,
             'rv_expire_url' => true, 'rv_expire_method' => true, 'rv_expire_body' => true,
-            'rv_create_url' => false, 'rv_create_method' => false, 'rv_create_body' => false,
+            'rv_create_url' => true, 'rv_create_method' => true, 'rv_create_body' => true,
             'rv_sdr_url' => false, 'rv_sdr_method' => false, 'rv_sdr_body' => false,
             'rv_custom_url' => false, 'rv_custom_method' => false, 'rv_custom_body' => false];
 }
@@ -168,6 +171,8 @@ function rv_plan(array $q, array $L): array {
         'property_id' => $L['property_id'] ?? '', 'unit_id' => $L['unit_id'] ?? '',
         'charge_id' => $q['rv_old_charge_id'] ?? '{charge_id}',
         'start_date' => $start, 'end_date' => $endOld, 'date' => date('Y-m-d'),
+        // Rentvine's own UI sends MM/DD/YYYY
+        'start_date_us' => date('m/d/Y', strtotime($start)), 'end_date_us' => date('m/d/Y', strtotime($endOld)), 'date_us' => date('m/d/Y'),
         'rent_account_id' => rv_tpl('rv_rent_account_id') ?: 'null',
         'deposit_account_id' => rv_tpl('rv_deposit_account_id') ?: 'null',
         'custom_field_id' => rv_tpl('rv_custom_field_id') ?: 'null',

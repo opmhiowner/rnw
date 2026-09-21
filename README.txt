@@ -150,11 +150,18 @@ POST TO RENTVINE  (bills are NEVER created)
   One-time charge bodies use "datePosted" (not "date"); the
   create-recurring body starts with "accountID".
 
-  WHAT IS NOT (marked "unverified" in Settings): the URL for creating
-  a recurring charge, the URL for the one-time (deposit) charge, the
-  full bodies of both, and the custom-field call. Paste the full
-  CURL.POST.RCR / CURL.POST.ASD.CHG calculation text and the scripts'
-  Insert from URL lines into Settings before the first real post.
+  CREATE RECURRING CHARGE - verified from a captured Rentvine web-UI
+  request (Sep 21): POST /leases/{leaseID}/recurring-charges with
+  {"accountID":"16","amount":"1.00","dayDue":1,"description":"test",
+   "endDate":null,"frequency":1,"startDate":"09/21/2026"} -> 200 OK.
+  Dates are MM/DD/YYYY ({start_date_us} etc.), amounts are strings,
+  frequency 1 = monthly, dayDue 1 = the 1st.
+
+  WHAT IS NOT (marked "unverified" in Settings): the URL and full
+  body of the one-time (deposit) charge, and the custom-field call.
+  Capture them the same way (Rentvine UI > DevTools > Network > the
+  POST when you add a one-time charge / save a custom field) and put
+  the URL and body into Settings before the first real post.
   "Send test" on a record does the reads for real and lists the
   lease's recurring charges and the rent / deposit GL accounts so
   the ids can be filled from what Rentvine returns.
