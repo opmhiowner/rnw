@@ -157,11 +157,18 @@ POST TO RENTVINE  (bills are NEVER created)
   Dates are MM/DD/YYYY ({start_date_us} etc.), amounts are strings,
   frequency 1 = monthly, dayDue 1 = the 1st.
 
-  WHAT IS NOT (marked "unverified" in Settings): the URL and full
-  body of the one-time (deposit) charge, and the custom-field call.
-  Capture them the same way (Rentvine UI > DevTools > Network > the
-  POST when you add a one-time charge / save a custom field) and put
-  the URL and body into Settings before the first real post.
+  DEPOSIT (one-time) CHARGE - body verified from FileMaker's
+  CURL.POST.ASD.CHG: {"datePosted":"MM/DD/YYYY","amount":110,
+  "description":"...","chargeAccountID":"<id>"}  (note chargeAccountID).
+  LAST RENEWAL DATE - body verified from FileMaker: {"3":"MM/DD/YYYY"}
+  - keyed by the custom field id (3 on this account), and the value
+  FileMaker writes is the RENT INCREASE DATE, which the app now does too.
+
+  WHAT IS NOT (marked "unverified" in Settings): only the URL those
+  two bodies post to. Defaults are /leases/{id}/charges and
+  /leases/{id}/custom-fields. The FileMaker scripts' "Insert from URL"
+  lines for ASD.CHG and the custom field settle it; put the paths into
+  Settings before the first real post.
   "Send test" on a record does the reads for real and lists the
   lease's recurring charges and the rent / deposit GL accounts so
   the ids can be filled from what Rentvine returns.

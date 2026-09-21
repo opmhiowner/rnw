@@ -42,8 +42,14 @@ declare(strict_types=1);
 //   POST /leases/{leaseID}/recurring-charges  200 OK  with body
 //   {"accountID":"16","amount":"1.00","dayDue":1,"description":"test","endDate":null,
 //    "frequency":1,"startDate":"09/21/2026"}  - dates are MM/DD/YYYY, amounts strings.
-// STILL UNVERIFIED: the URL + full body of the one-time (deposit) charge and
-//   the custom-field call. Confirm in Settings before the first real post.
+// VERIFIED from two more FileMaker curl fields (Larry, Sep 21):
+//   CURL.POST.ASD.CHG body: {"datePosted":"<SD>","amount":<ASD>,"description":"<ASD.DESC>",
+//     "chargeAccountID":"<ACCOUNTS.ASD::accountID>"}   (chargeAccountID, amount bare number)
+//   custom field body (context P.RCHG): {"3":"<INC.DTE>"}  - keyed by the custom field id,
+//     value = the rent INCREASE date. Field 3 = Last Renewal Date for this account.
+// STILL UNVERIFIED: the URL each of those two posts to (the FileMaker script's
+//   Insert from URL line). Defaults below are the natural REST paths; confirm
+//   in Settings before the first real post.
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
@@ -57,13 +63,13 @@ function rv_templates_default(): array {
         'rv_create_body'        => '{"accountID":"{rent_account_id}","amount":"{amount}","dayDue":1,"description":"Rent","endDate":null,"frequency":1,"startDate":"{start_date_us}"}',
         'rv_sdr_url'            => '{base}/leases/{lease_id}/charges',
         'rv_sdr_method'         => 'POST',
-        'rv_sdr_body'           => '{"datePosted":"{date_us}","amount":"{amount}","accountID":"{deposit_account_id}","description":"Security deposit increase"}',
-        'rv_custom_url'         => '{base}/leases/{lease_id}',
+        'rv_sdr_body'           => '{"datePosted":"{date_us}","amount":{amount},"description":"Security deposit increase","chargeAccountID":"{deposit_account_id}"}',
+        'rv_custom_url'         => '{base}/leases/{lease_id}/custom-fields',
         'rv_custom_method'      => 'POST',
-        'rv_custom_body'        => '{"customFields":[{"customFieldID":{custom_field_id},"value":"{date}"}]}',
+        'rv_custom_body'        => '{"{custom_field_id}":"{start_date_us}"}',
         'rv_rent_account_id'    => '',
         'rv_deposit_account_id' => '',
-        'rv_custom_field_id'    => '',
+        'rv_custom_field_id'    => '3',
         'rv_custom_field_name'  => 'Last Renewal Date',
     ];
 }
@@ -72,8 +78,8 @@ function rv_verified(): array {
     return ['rv_charges_list_url' => true, 'rv_charges_list_method' => true,
             'rv_expire_url' => true, 'rv_expire_method' => true, 'rv_expire_body' => true,
             'rv_create_url' => true, 'rv_create_method' => true, 'rv_create_body' => true,
-            'rv_sdr_url' => false, 'rv_sdr_method' => false, 'rv_sdr_body' => false,
-            'rv_custom_url' => false, 'rv_custom_method' => false, 'rv_custom_body' => false];
+            'rv_sdr_url' => false, 'rv_sdr_method' => true, 'rv_sdr_body' => true,
+            'rv_custom_url' => false, 'rv_custom_method' => true, 'rv_custom_body' => true];
 }
 function rv_tpl(string $k): string { return (string)setting($k, rv_templates_default()[$k] ?? ''); }
 
@@ -193,7 +199,7 @@ function rv_plan(array $q, array $L): array {
         'method' => rv_tpl('rv_sdr_method'), 'url' => rv_fill(rv_tpl('rv_sdr_url'), $vars),
         'body' => $sdr > 0 ? rv_fill(rv_tpl('rv_sdr_body'), $vars + ['amount' => number_format($sdr, 2, '.', '')]) : null,
         'done' => !empty($q['rv_sdr_charge_id']) || $sdr <= 0];
-    $steps[] = ['key' => 'custom', 'label' => rv_tpl('rv_custom_field_name') . ' = ' . date('Y-m-d'),
+    $steps[] = ['key' => 'custom', 'label' => rv_tpl('rv_custom_field_name') . ' (field ' . rv_tpl('rv_custom_field_id') . ') = ' . $start . ' (the rent increase date, as FileMaker did)',
         'method' => rv_tpl('rv_custom_method'), 'url' => rv_fill(rv_tpl('rv_custom_url'), $vars), 'body' => rv_fill(rv_tpl('rv_custom_body'), $vars),
         'done' => !empty($q['rv_custom_field_at'])];
     return ['creds' => ['source' => $c['source'], 'base' => $c['base'], 'key_tail' => $c['key'] !== '' ? '…' . substr($c['key'], -4) : ''],
