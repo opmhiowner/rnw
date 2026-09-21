@@ -32,9 +32,15 @@ declare(strict_types=1);
 //   GET  /leases/{lease_id}/recurring-charges/{id}           {"recurringCharge":{...},"previousCharge":{...}}
 //   GET  /accounting/accounts                                [{"account":{...}}]
 //   Rentvine's own update calls are POST (e.g. POST /properties/{id}), not PUT.
-// UNVERIFIED (no public write docs reachable): the four write calls below are
-// shaped after the reads above and MUST be confirmed in Settings before the
-// first real post. The docs live at https://docs.rentvine.com/ .
+// VERIFIED from the FileMaker curl fields (Larry, Sep 21): account host
+//   oishispm.rentvine.com/api/manager, Basic auth; script POST.MODIFY.existrcr
+//   = POST /leases/{leaseID}/recurring-charges/{chargeNo} with the CURL.MODIFY.*
+//   bodies ({"accountID":...} to modify, {"endDate":...} to end = our EXPIRE step).
+//   One-time charge bodies (CURL.POST.ASD.CHG / RENT.CHG) start {"datePosted":...,
+//   "amount":...}; create-recurring (CURL.POST.RCR) starts {"accountID":...}.
+// STILL UNVERIFIED: the URL for create-recurring and for the one-time (ASD)
+//   charge, the full bodies, and the custom-field call. Confirm in Settings
+//   (paste the full CURL.* calculation text) before the first real post.
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
@@ -48,7 +54,7 @@ function rv_templates_default(): array {
         'rv_create_body'        => '{"accountID":{rent_account_id},"amount":{amount},"startDate":"{start_date}","description":"Rent","frequencyID":1}',
         'rv_sdr_url'            => '{base}/leases/{lease_id}/charges',
         'rv_sdr_method'         => 'POST',
-        'rv_sdr_body'           => '{"accountID":{deposit_account_id},"amount":{amount},"date":"{date}","description":"Security deposit increase"}',
+        'rv_sdr_body'           => '{"datePosted":"{date}","amount":{amount},"accountID":{deposit_account_id},"description":"Security deposit increase"}',
         'rv_custom_url'         => '{base}/leases/{lease_id}',
         'rv_custom_method'      => 'POST',
         'rv_custom_body'        => '{"customFields":[{"customFieldID":{custom_field_id},"value":"{date}"}]}',
@@ -61,7 +67,7 @@ function rv_templates_default(): array {
 // which templates are confirmed by a working client vs still a guess
 function rv_verified(): array {
     return ['rv_charges_list_url' => true, 'rv_charges_list_method' => true,
-            'rv_expire_url' => false, 'rv_expire_method' => false, 'rv_expire_body' => false,
+            'rv_expire_url' => true, 'rv_expire_method' => true, 'rv_expire_body' => true,
             'rv_create_url' => false, 'rv_create_method' => false, 'rv_create_body' => false,
             'rv_sdr_url' => false, 'rv_sdr_method' => false, 'rv_sdr_body' => false,
             'rv_custom_url' => false, 'rv_custom_method' => false, 'rv_custom_body' => false];
@@ -107,7 +113,7 @@ function rv_creds(): array {
         $c['base'] = rtrim((string)setting('rv_base', ''), '/');
         $c['key'] = (string)setting('rv_api_key', '');
         $c['secret'] = (string)setting('rv_api_secret', '');
-        $c['auth_style'] = (string)setting('rv_auth_style', 'bearer');
+        $c['auth_style'] = (string)setting('rv_auth_style', 'basic');
         $c['auth_header'] = (string)setting('rv_auth_header', 'X-Api-Key');
         $c['source'] = $c['key'] !== '' ? 'settings' : 'none';
     }

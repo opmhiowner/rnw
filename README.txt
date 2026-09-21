@@ -143,14 +143,21 @@ POST TO RENTVINE  (bills are NEVER created)
   account id is learned from that charge on the first post if the
   setting is blank.
 
-  WHAT IS NOT (marked "unverified" in Settings): the four WRITE calls
-  - expire a recurring charge, create one, post a ledger charge, set
-  a custom field. No public write documentation was reachable; the
-  defaults are shaped after the reads above. Confirm each against
-  https://docs.rentvine.com/ (or Rentvine support) before the first
-  real post. "Send test" on a record does the reads for real and
-  lists the lease's recurring charges and the rent / deposit GL
-  accounts so the ids can be filled from what Rentvine returns.
+  ALSO VERIFIED from the FileMaker curl fields (Sep 21): the account
+  host is oishispm.rentvine.com; FileMaker ends a recurring charge
+  with POST /leases/{leaseID}/recurring-charges/{chargeNo} and body
+  {"endDate": ...} - that is our EXPIRE step, now marked verified.
+  One-time charge bodies use "datePosted" (not "date"); the
+  create-recurring body starts with "accountID".
+
+  WHAT IS NOT (marked "unverified" in Settings): the URL for creating
+  a recurring charge, the URL for the one-time (deposit) charge, the
+  full bodies of both, and the custom-field call. Paste the full
+  CURL.POST.RCR / CURL.POST.ASD.CHG calculation text and the scripts'
+  Insert from URL lines into Settings before the first real post.
+  "Send test" on a record does the reads for real and lists the
+  lease's recurring charges and the rent / deposit GL accounts so
+  the ids can be filled from what Rentvine returns.
 
   Credentials: the office's Rentvine key is read from Sync Center's
   encrypted source row (sync_sources) with the key in
