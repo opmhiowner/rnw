@@ -152,9 +152,14 @@ README.txt is the operator's guide. Files: `lib/core.php` `lib/sync.php` `lib/re
 **Assumptions to confirm on first deploy (all adjustable without a redeploy where noted):**
 1. Rentvine key names for rent / endDate / leaseTypeID / securityDeposit / moveOutDate / customFields —
    read tolerantly in `lease_join()`; `probe.php` shows the live record. Code change if wrong.
-2. Rentvine write endpoints and bodies — Settings › Rentvine (no redeploy). Shipped defaults are a guess;
-   paste from the FileMaker curl commands. Needs the rent and deposit GL account ids and the custom
-   field id.
+2. Rentvine write endpoints and bodies — Settings › Rentvine (no redeploy). **Sep 21 research:** the
+   base URL (`https://<account>.rentvine.com/api/manager`), Basic auth, and the reads (lease, recurring
+   charges with `account.isRent`, accounts) are verified against the open-source client
+   Launch-Engine/rentvine; the four writes are still unverified because docs.rentvine.com and
+   rentvine.com are blocked from the build container. Settings marks each template verified/unverified,
+   and "Send test" lists the lease's recurring charges and candidate GL accounts from the live API.
+   Needs the deposit GL account id and the custom field id (the rent account id is learned from the
+   live rent charge).
 3. O.Letter ranges — RANGE TOP/BOTTOM default from comp median (+10 % / −15 %) or current rent
    (+15 % / −10 %); BASELINE/RENTSTART/RENTDROP are the 60/80/92 % positions. `ranges_for()` in
    `api/board.php` if the letters need FileMaker's exact formulas.

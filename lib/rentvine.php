@@ -24,28 +24,47 @@
 // ============================================================
 declare(strict_types=1);
 
+// VERIFIED against a working client (Launch-Engine/rentvine, Aug 2026):
+//   base = https://<account>.rentvine.com/api/manager ; HTTP Basic api_key:api_secret
+//   GET  /leases/{lease_id}                                  {"lease":{...}}
+//   GET  /leases/{lease_id}/recurring-charges                [{"recurringCharge":{leaseRecurringChargeID,
+//        description, amount, ...}, "account":{accountID, name, isRent}}]
+//   GET  /leases/{lease_id}/recurring-charges/{id}           {"recurringCharge":{...},"previousCharge":{...}}
+//   GET  /accounting/accounts                                [{"account":{...}}]
+//   Rentvine's own update calls are POST (e.g. POST /properties/{id}), not PUT.
+// UNVERIFIED (no public write docs reachable): the four write calls below are
+// shaped after the reads above and MUST be confirmed in Settings before the
+// first real post. The docs live at https://docs.rentvine.com/ .
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
         'rv_charges_list_method'=> 'GET',
-        'rv_rent_match'         => 'rent',            // recurring charge whose description/account contains this = the rent charge
-        'rv_expire_url'         => '{base}/leases/recurring-charges/{charge_id}',
-        'rv_expire_method'      => 'PUT',
+        'rv_rent_match'         => 'rent',            // fallback only: account.isRent wins when present
+        'rv_expire_url'         => '{base}/leases/{lease_id}/recurring-charges/{charge_id}',
+        'rv_expire_method'      => 'POST',
         'rv_expire_body'        => '{"endDate":"{end_date}"}',
         'rv_create_url'         => '{base}/leases/{lease_id}/recurring-charges',
         'rv_create_method'      => 'POST',
-        'rv_create_body'        => '{"amount":{amount},"startDate":"{start_date}","frequency":"monthly","description":"Rent","accountID":{rent_account_id}}',
+        'rv_create_body'        => '{"accountID":{rent_account_id},"amount":{amount},"startDate":"{start_date}","description":"Rent","frequencyID":1}',
         'rv_sdr_url'            => '{base}/leases/{lease_id}/charges',
         'rv_sdr_method'         => 'POST',
-        'rv_sdr_body'           => '{"amount":{amount},"date":"{date}","description":"Security deposit increase","accountID":{deposit_account_id}}',
-        'rv_custom_url'         => '{base}/leases/{lease_id}/custom-fields',
-        'rv_custom_method'      => 'PUT',
+        'rv_sdr_body'           => '{"accountID":{deposit_account_id},"amount":{amount},"date":"{date}","description":"Security deposit increase"}',
+        'rv_custom_url'         => '{base}/leases/{lease_id}',
+        'rv_custom_method'      => 'POST',
         'rv_custom_body'        => '{"customFields":[{"customFieldID":{custom_field_id},"value":"{date}"}]}',
         'rv_rent_account_id'    => '',
         'rv_deposit_account_id' => '',
         'rv_custom_field_id'    => '',
         'rv_custom_field_name'  => 'Last Renewal Date',
     ];
+}
+// which templates are confirmed by a working client vs still a guess
+function rv_verified(): array {
+    return ['rv_charges_list_url' => true, 'rv_charges_list_method' => true,
+            'rv_expire_url' => false, 'rv_expire_method' => false, 'rv_expire_body' => false,
+            'rv_create_url' => false, 'rv_create_method' => false, 'rv_create_body' => false,
+            'rv_sdr_url' => false, 'rv_sdr_method' => false, 'rv_sdr_body' => false,
+            'rv_custom_url' => false, 'rv_custom_method' => false, 'rv_custom_body' => false];
 }
 function rv_tpl(string $k): string { return (string)setting($k, rv_templates_default()[$k] ?? ''); }
 
@@ -170,27 +189,41 @@ function rv_plan(array $q, array $L): array {
             'start' => $start, 'steps' => $steps];
 }
 
-// pick the rent charge out of a recurring-charges listing
-function rv_pick_rent_charge(?array $j): ?array {
-    if (!is_array($j)) { return null; }
+// pick the rent charge out of a recurring-charges listing. Shape (verified):
+// [{"recurringCharge":{leaseRecurringChargeID, description, amount, endDate?}, "account":{accountID, name, isRent}}]
+// account.isRent decides; the description match is the fallback.
+function rv_charge_rows(?array $j): array {
+    if (!is_array($j)) { return []; }
     $list = $j;
     foreach (['recurringCharges', 'charges', 'data', 'items', 'results'] as $k) {
         if (isset($j[$k]) && is_array($j[$k])) { $list = $j[$k]; break; }
     }
-    $needle = strtolower(rv_tpl('rv_rent_match'));
-    $best = null;
+    $out = [];
     foreach ($list as $c) {
         if (!is_array($c)) { continue; }
-        $c2 = isset($c['recurringCharge']) && is_array($c['recurringCharge']) ? $c['recurringCharge'] : $c;
-        $desc = strtolower((string)(sx($c2, ['description', 'name', 'memo', 'accountName', 'account.name']) ?? ''));
-        $end = sx_date($c2, ['endDate', 'end_date']);
-        $open = $end === null || $end >= date('Y-m-d');
-        if ($open && ($needle === '' || str_contains($desc, $needle))) {
-            $id = sx($c2, ['recurringChargeID', 'id', 'chargeID', 'recurring_charge_id']);
-            if ($id !== null) { $best = ['id' => (string)$id, 'amount' => sx_num($c2, ['amount', 'rent']), 'desc' => $desc]; break; }
-        }
+        $rc = isset($c['recurringCharge']) && is_array($c['recurringCharge']) ? $c['recurringCharge'] : $c;
+        $acct = isset($c['account']) && is_array($c['account']) ? $c['account'] : (isset($rc['account']) && is_array($rc['account']) ? $rc['account'] : []);
+        $isRent = sx($acct, ['isRent']) ?? sx($rc, ['isRent', 'account.isRent']);
+        $out[] = [
+            'id'      => (string)(sx($rc, ['leaseRecurringChargeID', 'recurringChargeID', 'id', 'chargeID', 'recurring_charge_id']) ?? ''),
+            'desc'    => (string)(sx($rc, ['description', 'name', 'memo']) ?? ''),
+            'amount'  => sx_num($rc, ['amount', 'rent']),
+            'start'   => sx_date($rc, ['startDate', 'start_date']),
+            'end'     => sx_date($rc, ['endDate', 'end_date']),
+            'account' => (string)(sx($acct, ['accountID', 'id']) ?? sx($rc, ['accountID']) ?? ''),
+            'account_name' => (string)(sx($acct, ['name']) ?? ''),
+            'is_rent' => $isRent === null ? null : in_array(strtolower((string)$isRent), ['1', 'true', 'yes'], true),
+        ];
     }
-    return $best;
+    return $out;
+}
+function rv_pick_rent_charge(?array $j): ?array {
+    $rows = rv_charge_rows($j);
+    $needle = strtolower(rv_tpl('rv_rent_match'));
+    $open = array_filter($rows, fn($r) => $r['id'] !== '' && ($r['end'] === null || $r['end'] >= date('Y-m-d')));
+    foreach ($open as $r) { if ($r['is_rent'] === true) { return $r; } }
+    foreach ($open as $r) { if ($needle !== '' && str_contains(strtolower($r['desc'] . ' ' . $r['account_name']), $needle)) { return $r; } }
+    return null;
 }
 
 // ---------- run it. $only = one step key for "retry this step"; null = all pending
@@ -217,6 +250,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         }
         $pdo->prepare("UPDATE renewal_queue SET rv_old_charge_id = ? WHERE id = ?")->execute([$pick['id'], $q['id']]);
         $q['rv_old_charge_id'] = $pick['id'];
+        if (rv_tpl('rv_rent_account_id') === '' && $pick['account'] !== '') { setting_put('rv_rent_account_id', $pick['account']); }   // learn the rent GL account from the live charge
         $log[] = ['step' => 'find', 'ok' => true, 'note' => 'charge ' . $pick['id'] . ' ($' . number_format((float)$pick['amount'], 2) . ' ' . $pick['desc'] . ')'];
         log_event((int)$q['id'], 'rv_find', ['lease_id' => $q['lease_id'], 'detail' => $pick]);
         $plan = rv_plan($q, $L); foreach ($plan['steps'] as $s) { $steps[$s['key']] = $s; }
@@ -236,7 +270,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $s = $steps['create'];
         $r = rv_call($s['method'], $s['url'], $s['body']);
         if (!$r['ok']) { return $fail('create', $r); }
-        $nid = (string)(sx($r['json'] ?? [], ['recurringChargeID', 'id', 'recurringCharge.recurringChargeID', 'recurringCharge.id', 'data.id']) ?? ('ok-' . date('YmdHis')));
+        $nid = (string)(sx($r['json'] ?? [], ['recurringCharge.leaseRecurringChargeID', 'leaseRecurringChargeID', 'recurringChargeID', 'recurringCharge.recurringChargeID', 'recurringCharge.id', 'id', 'data.id']) ?? ('ok-' . date('YmdHis')));
         $pdo->prepare("UPDATE renewal_queue SET rv_new_charge_id = ? WHERE id = ?")->execute([$nid, $q['id']]);
         $q['rv_new_charge_id'] = $nid;
         $log[] = ['step' => 'create', 'ok' => true, 'note' => 'new charge ' . $nid];
@@ -248,7 +282,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $s = $steps['sdr'];
         $r = rv_call($s['method'], $s['url'], $s['body']);
         if (!$r['ok']) { return $fail('sdr', $r); }
-        $nid = (string)(sx($r['json'] ?? [], ['chargeID', 'id', 'charge.chargeID', 'charge.id', 'transactionID', 'data.id']) ?? ('ok-' . date('YmdHis')));
+        $nid = (string)(sx($r['json'] ?? [], ['charge.chargeID', 'charge.leaseChargeID', 'chargeID', 'leaseChargeID', 'transaction.transactionID', 'transactionID', 'charge.id', 'id', 'data.id']) ?? ('ok-' . date('YmdHis')));
         $pdo->prepare("UPDATE renewal_queue SET rv_sdr_charge_id = ? WHERE id = ?")->execute([$nid, $q['id']]);
         $q['rv_sdr_charge_id'] = $nid;
         $log[] = ['step' => 'sdr', 'ok' => true, 'note' => 'ledger charge ' . $nid . ' $' . number_format($sdr, 2)];
@@ -275,11 +309,33 @@ function rv_post(array $q, array $L, ?string $only = null): array {
     return ['ok' => true, 'done' => $allDone, 'log' => $log];
 }
 
-// "Send test": one GET against the lease so the key, base URL and
-// auth style are proven before anything is written
+// "Send test": reads only - the lease, its recurring charges and the GL
+// accounts - so key, base URL, auth style AND the ids Settings needs (rent
+// charge, rent account, deposit account) are all seen before anything is written.
 function rv_test(string $leaseId): array {
     $c = rv_creds();
     $r = rv_call('GET', $c['base'] . '/leases/' . rawurlencode($leaseId), null, 20);
-    return ['ok' => $r['ok'], 'code' => $r['code'], 'error' => $r['error'], 'source' => $c['source'],
-            'base' => $c['base'], 'sample' => mb_substr($r['body'], 0, 1500)];
+    $out = ['ok' => $r['ok'], 'code' => $r['code'], 'error' => $r['error'], 'source' => $c['source'],
+            'base' => $c['base'], 'auth_style' => $c['auth_style'], 'sample' => mb_substr($r['body'], 0, 1200)];
+    if (!$r['ok']) { return $out; }
+    $rc = rv_call('GET', rv_fill(rv_tpl('rv_charges_list_url'), ['base' => $c['base'], 'lease_id' => $leaseId]), null, 20);
+    $out['charges_ok'] = $rc['ok'];
+    $out['charges'] = $rc['ok'] ? rv_charge_rows($rc['json']) : [];
+    $out['charges_raw'] = mb_substr($rc['body'], 0, 1500);
+    $pick = $rc['ok'] ? rv_pick_rent_charge($rc['json']) : null;
+    $out['rent_charge'] = $pick;
+    $ra = rv_call('GET', $c['base'] . '/accounting/accounts', null, 30);
+    $accts = [];
+    if ($ra['ok'] && is_array($ra['json'])) {
+        foreach ($ra['json'] as $a) {
+            $A = isset($a['account']) && is_array($a['account']) ? $a['account'] : (is_array($a) ? $a : []);
+            $name = (string)(sx($A, ['name']) ?? '');
+            $isRent = sx($A, ['isRent']);
+            $hit = ($isRent !== null && in_array(strtolower((string)$isRent), ['1', 'true'], true)) || preg_match('/rent|deposit|security/i', $name);
+            if ($hit) { $accts[] = ['id' => (string)(sx($A, ['accountID', 'id']) ?? ''), 'name' => $name, 'is_rent' => $isRent, 'type' => (string)(sx($A, ['accountTypeID', 'type']) ?? '')]; }
+        }
+    }
+    $out['accounts_ok'] = $ra['ok'];
+    $out['accounts'] = $accts;
+    return $out;
 }

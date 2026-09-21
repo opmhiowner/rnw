@@ -124,10 +124,33 @@ POST TO RENTVINE  (bills are NEVER created)
   Endpoints and bodies live in Settings > Rentvine with placeholders
   {base} {lease_id} {tenant_id} {charge_id} {amount} {start_date}
   {end_date} {date} {rent_account_id} {deposit_account_id}
-  {custom_field_id}. The shipped defaults are a FIRST GUESS at the
-  Rentvine API - paste the paths and bodies from the working curl
-  commands before the first real post, and fill the two GL account
-  ids and the custom field id.
+  {custom_field_id}.
+
+  WHAT IS VERIFIED (Sep 21, against a working open-source Rentvine
+  client, Launch-Engine/rentvine on GitHub):
+    base URL   https://<account>.rentvine.com/api/manager
+    auth       HTTP Basic, api key : api secret (Sync Center's stored
+               auth style is reused as-is)
+    GET /leases/{id}                         {"lease":{...}}
+    GET /leases/{id}/recurring-charges       [{"recurringCharge":{
+               leaseRecurringChargeID, description, amount, endDate},
+               "account":{accountID, name, isRent}}]
+    GET /leases/{id}/recurring-charges/{cid} one charge + previousCharge
+    GET /accounting/accounts                 [{"account":{...}}]
+    Rentvine updates are POST (its own client updates a property with
+    POST /properties/{id}); object type 4 = Lease.
+  The rent charge is picked by account.isRent, and the rent GL
+  account id is learned from that charge on the first post if the
+  setting is blank.
+
+  WHAT IS NOT (marked "unverified" in Settings): the four WRITE calls
+  - expire a recurring charge, create one, post a ledger charge, set
+  a custom field. No public write documentation was reachable; the
+  defaults are shaped after the reads above. Confirm each against
+  https://docs.rentvine.com/ (or Rentvine support) before the first
+  real post. "Send test" on a record does the reads for real and
+  lists the lease's recurring charges and the rent / deposit GL
+  accounts so the ids can be filled from what Rentvine returns.
 
   Credentials: the office's Rentvine key is read from Sync Center's
   encrypted source row (sync_sources) with the key in

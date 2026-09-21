@@ -428,7 +428,14 @@ $me = require_login();
       $('rv-log').innerHTML = '<div class="muted">Testing…</div>';
       const t = await api('rv_test', { lease_id: S.sel });
       const r = t.test || {};
-      $('rv-log').innerHTML = `<div class="strip ${r.ok ? '' : 'err'}">${r.ok ? 'Rentvine answered OK' : 'Failed: ' + fmt.esc(r.error || '')} (HTTP ${r.code}) via ${fmt.esc(r.source)}</div><pre class="small">${fmt.esc(r.sample || '')}</pre>`;
+      const chg = (r.charges || []).map(c => `<div class="tr" style="grid-template-columns:1fr 2fr 1fr 1fr 1.6fr 1fr"><span class="mono">${fmt.esc(c.id)}</span><span>${fmt.esc(c.desc)}</span><span class="mono">${fmt.money2(c.amount)}</span><span>${fmt.esc(c.end || 'open')}</span><span>${fmt.esc(c.account_name)} <span class="mono">#${fmt.esc(c.account)}</span></span><span>${c.is_rent === true ? '<strong>RENT</strong>' : (c.is_rent === false ? '' : '?')}</span></div>`).join('');
+      const acc = (r.accounts || []).map(a => `<div class="tr" style="grid-template-columns:1fr 3fr 1fr"><span class="mono">${fmt.esc(a.id)}</span><span>${fmt.esc(a.name)}</span><span>${a.is_rent ? 'isRent' : ''}</span></div>`).join('');
+      $('rv-log').innerHTML = `<div class="strip ${r.ok ? '' : 'err'}">${r.ok ? 'Rentvine answered OK' : 'Failed: ' + fmt.esc(r.error || '')} (HTTP ${r.code}) via ${fmt.esc(r.source)} · ${fmt.esc(r.auth_style || '')} auth · ${fmt.esc(r.base || '')}</div>`
+        + (r.ok ? `<div class="label" style="margin-top:8px">Recurring charges on this lease ${r.charges_ok ? '' : '(list call failed)'} · rent charge picked: ${r.rent_charge ? '<strong>#' + fmt.esc(r.rent_charge.id) + ' ' + fmt.esc(r.rent_charge.desc) + '</strong>' : '<strong style="color:var(--red)">none</strong>'}</div>
+           <div class="tbl"><div class="tr th" style="grid-template-columns:1fr 2fr 1fr 1fr 1.6fr 1fr"><span>Id</span><span>Description</span><span>Amount</span><span>End</span><span>GL account</span><span></span></div>${chg || '<div class="tr muted">none</div>'}</div>
+           <div class="label" style="margin-top:8px">GL accounts that look like rent / deposit ${r.accounts_ok ? '' : '(accounts call failed)'} — copy the ids into Settings › Rentvine</div>
+           <div class="tbl"><div class="tr th" style="grid-template-columns:1fr 3fr 1fr"><span>Id</span><span>Name</span><span></span></div>${acc || '<div class="tr muted">none</div>'}</div>
+           <details><summary class="muted" style="font-size:11px;cursor:pointer">raw replies</summary><pre class="small">${fmt.esc(r.sample || '')}\n\n${fmt.esc(r.charges_raw || '')}</pre></details>` : `<pre class="small">${fmt.esc(r.sample || '')}</pre>`);
     };
     $('m-go').onclick = async () => {
       if (!confirm('Post this renewal to Rentvine now?\n\n' + p.steps.filter(s => !s.done).map(s => '• ' + s.label).join('\n'))) return;
@@ -465,7 +472,8 @@ $me = require_login();
     const j = await api('settings_get', {});
     if (!j.ok) { toast(j.error, true); return; }
     const s = j.settings, d = j.defaults;
-    const f = (k, label, type) => `<label>${label}</label><input class="in" data-k="${k}" type="${type || 'text'}" value="${fmt.esc(s[k] ?? '')}" placeholder="${fmt.esc(d[k] ?? '')}">`;
+    const V = j.verified || {};
+    const f = (k, label, type) => `<label>${label}${k in V ? (V[k] ? ' <span class="tag" style="background:var(--green-bg);color:var(--green-ink)">verified</span>' : ' <span class="tag" style="background:#fef3c7;color:#92400e">unverified</span>') : ''}</label><input class="in" data-k="${k}" type="${type || 'text'}" value="${fmt.esc(s[k] ?? '')}" placeholder="${fmt.esc(d[k] ?? '')}">`;
     const localDisplay = LS('renewal.display');
     openModal(`<h2>Settings · ${fmt.esc(S.board.office.label)}</h2>
       <div class="label">This PC (saved in this browser only)</div>
@@ -490,7 +498,7 @@ $me = require_login();
         ${f('rv_create_url', 'Create recurring charge URL')}${f('rv_create_method', 'method')}${f('rv_create_body', 'body')}
         ${f('rv_sdr_url', 'Ledger charge URL')}${f('rv_sdr_method', 'method')}${f('rv_sdr_body', 'body')}
         ${f('rv_custom_url', 'Custom field URL')}${f('rv_custom_method', 'method')}${f('rv_custom_body', 'body')}</div>
-      <div class="muted" style="font-size:11px">Placeholders: {base} {lease_id} {tenant_id} {property_id} {unit_id} {charge_id} {amount} {start_date} {end_date} {date} {rent_account_id} {deposit_account_id} {custom_field_id}. The defaults are a first guess — paste the paths and bodies from the working curl commands.</div>
+      <div class="muted" style="font-size:11px">Placeholders: {base} {lease_id} {tenant_id} {property_id} {unit_id} {charge_id} {amount} {start_date} {end_date} {date} {rent_account_id} {deposit_account_id} {custom_field_id}. <strong>verified</strong> = confirmed against a working Rentvine client (base URL, Basic auth, the reads). <strong>unverified</strong> = shaped after those reads; confirm in the Rentvine API docs (docs.rentvine.com) before the first real post. "Send test" on a record lists the lease's recurring charges and the rent / deposit GL accounts so the ids above can be filled from what Rentvine actually returns.</div>
       <div class="row" style="justify-content:flex-end"><button class="btn" id="m-close">Cancel</button><button class="btn pri" id="m-save">Save settings</button></div>`);
     $('m-close').onclick = closeModal;
     $('m-save').onclick = async () => {

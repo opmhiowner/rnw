@@ -295,7 +295,7 @@ case 'settings_get': {
     $out['rv_api_key_tail'] = ($k = (string)setting('rv_api_key', '')) !== '' ? '…' . substr($k, -4) : '';
     $c = rv_creds();
     json_out(['ok' => true, 'settings' => $out, 'rv_source' => $c['source'], 'rv_base_effective' => $c['base'], 'rv_key_tail' => $c['key'] !== '' ? '…' . substr($c['key'], -4) : '',
-              'defaults' => rnw_defaults() + rv_templates_default()]);
+              'defaults' => rnw_defaults() + rv_templates_default(), 'verified' => rv_verified()]);
 }
 case 'settings_set': {
     $allowed = array_merge(array_keys(rnw_defaults()), array_keys(rv_templates_default()), ['timezone', 'region_label', 'rv_base', 'rv_api_key', 'rv_api_secret', 'rv_auth_style', 'rv_auth_header']);
