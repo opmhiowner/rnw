@@ -47,9 +47,12 @@ declare(strict_types=1);
 //     "chargeAccountID":"<ACCOUNTS.ASD::accountID>"}   (chargeAccountID, amount bare number)
 //   custom field body (context P.RCHG): {"3":"<INC.DTE>"}  - keyed by the custom field id,
 //     value = the rent INCREASE date. Field 3 = Last Renewal Date for this account.
-// STILL UNVERIFIED: the URL each of those two posts to (the FileMaker script's
-//   Insert from URL line). Defaults below are the natural REST paths; confirm
-//   in Settings before the first real post.
+// VERIFIED (Larry, Sep 21) MODIFY.LEASE.URL = {base}/custom-fields/values/4/{leaseID}
+//   - 4 is Rentvine's object type id for Lease. Body {"<customFieldID>":"<value>"}.
+//   FileMaker also has MODIFY.LEASEend.URL = {base}/leases/{leaseID} (lease-level
+//   update, e.g. a new lease end date) - not one of the four steps here.
+// STILL UNVERIFIED: the URL the one-time deposit charge posts to. Default below
+//   is the natural REST path; confirm in Settings before the first real post.
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
@@ -64,7 +67,7 @@ function rv_templates_default(): array {
         'rv_sdr_url'            => '{base}/leases/{lease_id}/charges',
         'rv_sdr_method'         => 'POST',
         'rv_sdr_body'           => '{"datePosted":"{date_us}","amount":{amount},"description":"Security deposit increase","chargeAccountID":"{deposit_account_id}"}',
-        'rv_custom_url'         => '{base}/leases/{lease_id}/custom-fields',
+        'rv_custom_url'         => '{base}/custom-fields/values/4/{lease_id}',
         'rv_custom_method'      => 'POST',
         'rv_custom_body'        => '{"{custom_field_id}":"{start_date_us}"}',
         'rv_rent_account_id'    => '',
@@ -79,7 +82,7 @@ function rv_verified(): array {
             'rv_expire_url' => true, 'rv_expire_method' => true, 'rv_expire_body' => true,
             'rv_create_url' => true, 'rv_create_method' => true, 'rv_create_body' => true,
             'rv_sdr_url' => false, 'rv_sdr_method' => true, 'rv_sdr_body' => true,
-            'rv_custom_url' => false, 'rv_custom_method' => true, 'rv_custom_body' => true];
+            'rv_custom_url' => true, 'rv_custom_method' => true, 'rv_custom_body' => true];
 }
 function rv_tpl(string $k): string { return (string)setting($k, rv_templates_default()[$k] ?? ''); }
 

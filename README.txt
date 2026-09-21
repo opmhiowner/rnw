@@ -164,11 +164,13 @@ POST TO RENTVINE  (bills are NEVER created)
   - keyed by the custom field id (3 on this account), and the value
   FileMaker writes is the RENT INCREASE DATE, which the app now does too.
 
-  WHAT IS NOT (marked "unverified" in Settings): only the URL those
-  two bodies post to. Defaults are /leases/{id}/charges and
-  /leases/{id}/custom-fields. The FileMaker scripts' "Insert from URL"
-  lines for ASD.CHG and the custom field settle it; put the paths into
-  Settings before the first real post.
+  The custom-field URL is verified from FileMaker's MODIFY.LEASE.URL:
+  POST /custom-fields/values/4/{leaseID}  (4 = object type Lease).
+
+  WHAT IS NOT (marked "unverified" in Settings): only the URL the
+  one-time deposit charge posts to. Default is /leases/{id}/charges.
+  The FileMaker script's "Insert from URL" line for ASD.CHG settles
+  it; put the path into Settings before the first real post.
   "Send test" on a record does the reads for real and lists the
   lease's recurring charges and the rent / deposit GL accounts so
   the ids can be filled from what Rentvine returns.
