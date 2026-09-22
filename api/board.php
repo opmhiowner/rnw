@@ -87,10 +87,33 @@ function lease_out(array $L): array {
     return $L;
 }
 
+// current rent missing from the mirror -> ask Rentvine for the rent charge
+// once, and remember charge id + due day on the row (the post's find step)
+function rent_backfill(array &$q, array $L): void {
+    if ($q['current_rent'] !== null || $q['status'] !== 'open') { return; }
+    if (setting('rent_backfill_off', '0') === '1') { return; }
+    $pick = rv_live_rent_charge($L['lease_id']);
+    if (!$pick || $pick['amount'] === null) { return; }
+    $rent = (float)$pick['amount'];
+    $newRent = $q['new_rent'] !== null ? (float)$q['new_rent'] : $rent;
+    $pct = $rent > 0 ? round((($newRent - $rent) / $rent) * 100, 2) : 0.0;
+    $dep = $q['current_deposit'] !== null ? (float)$q['current_deposit'] : null;
+    $newDep = $q['new_deposit'] !== null ? (float)$q['new_deposit'] : new_deposit_for($newRent, $dep);
+    db()->prepare("UPDATE renewal_queue SET current_rent = ?, lease_rent = COALESCE(lease_rent, ?), new_rent = ?, pct_inc = ?,
+                     new_deposit = ?, sdr_delta = ?, rv_old_charge_id = COALESCE(rv_old_charge_id, ?), rv_day_due = COALESCE(rv_day_due, ?)
+                   WHERE id = ?")
+        ->execute([$rent, $rent, $newRent, $pct, $newDep, ($newDep !== null && $dep !== null) ? max(0.0, $newDep - $dep) : null,
+                   $pick['id'] !== '' ? $pick['id'] : null, $pick['day_due'], $q['id']]);
+    log_event((int)$q['id'], 'rent_from_rentvine', ['lease_id' => $L['lease_id'], 'detail' => ['charge' => $pick['id'], 'amount' => $rent, 'desc' => $pick['desc'], 'day_due' => $pick['day_due']]]);
+    $q = q_row($L['lease_id']);
+}
+
 function record_payload(string $leaseId): array {
     $L = lease_one($leaseId);
     if (!$L) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in Sync Center for this office.']); }
     $q = q_open($L);
+    rent_backfill($q, $L);
+    if ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }
     $q['pinned_comps'] = json_decode((string)($q['pinned_comps'] ?? ''), true) ?: [];
     $hist = array_map(fn($x) => ['lease_id' => $x['lease_id'], 'unit' => $x['unit'], 'bed' => $x['bed'], 'bath' => $x['bath'],
                                 'parking' => $x['parking'], 'rent' => $x['rent'], 'last_increase' => $x['last_renewal'] ?? $x['last_increase'],

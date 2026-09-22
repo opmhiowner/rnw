@@ -51,7 +51,7 @@ $me = require_login();
         <button class="btn" id="btn-settings">Settings</button>
       </div>
 
-      <div class="body" style="padding:20px 24px;display:flex;flex-direction:column;gap:18px" id="recbody">
+      <div class="body" style="padding:14px 24px;display:flex;flex-direction:column;gap:14px" id="recbody">
         <div class="grid2">
           <!-- rent decision -->
           <div class="card">
@@ -65,8 +65,8 @@ $me = require_login();
                 <span class="row" style="gap:2px"><span class="money blue">$</span><input class="in sm mono money-in" id="f-new-rent"></span></div>
               <div class="fld"><span>% increase</span><span class="money green" id="pct">—</span></div>
             </div>
-            <div class="row" style="flex-wrap:wrap">
-              <span class="muted" style="width:40px">Step</span>
+            <div class="row" style="flex-wrap:wrap;gap:6px">
+              <span class="muted" style="width:36px">Step</span>
               <span class="row" id="steps"></span>
               <div class="grow"></div>
               <button class="btn arrow" id="dec" aria-label="Lower new rent">&lt;</button>
@@ -270,7 +270,7 @@ $me = require_login();
     const yrs = L.move_in ? ((Date.now() - new Date(L.move_in)) / 31557600000).toFixed(1) : '—';
     $('lease-grid').innerHTML = [['Move in', fmt.date(L.move_in)], ['Lease end', L.mtm ? (L.end ? fmt.date(L.end) + ' (MTM)' : 'MTM') : fmt.date(L.end)], ['Lease yrs', yrs],
       ['Type', L.mtm ? 'Month-to-month' : 'Fixed'], ['Bed / bath', (L.bed ?? '—') + ' / ' + (L.bath ?? '—')], ['Sq ft · parking', (L.sqft ?? '—') + ' · ' + (L.parking || '—')],
-      ['Next rent', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Rentvine lease', L.lease_id]]
+      ['Next rent', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Rentvine lease', L.lease_id + (L.rent_source ? ' · rent from ' + L.rent_source : '')]]
       .map(([k, v]) => `<div class="fld"><span>${k}</span><strong>${fmt.esc(v)}</strong></div>`).join('');
     $('hist-n').textContent = S.rec.history.length + ' other unit' + (S.rec.history.length === 1 ? '' : 's');
     $('hist').innerHTML = [{ unit: L.unit, bed: L.bed, bath: L.bath, parking: L.parking, rent: L.rent, last_increase: L.last_renewal || L.last_increase, move_in: L.move_in, tenant: L.tenant, me: true }]

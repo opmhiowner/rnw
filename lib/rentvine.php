@@ -252,6 +252,18 @@ function rv_pick_rent_charge(?array $j): ?array {
     return null;
 }
 
+// ---------- the live rent charge for a lease (one GET). Rentvine keeps rent
+// on the recurring charge, not on the lease record, so when Sync Center's
+// mirror has no rent this is where "current rent" comes from. Returns the
+// picked charge row or null (no creds / no charge / network).
+function rv_live_rent_charge(string $leaseId): ?array {
+    $c = rv_creds();
+    if ($c['key'] === '' || $c['base'] === '') { return null; }
+    $r = rv_call('GET', rv_fill(rv_tpl('rv_charges_list_url'), ['base' => $c['base'], 'lease_id' => $leaseId]), null, 15);
+    if (!$r['ok']) { return null; }
+    return rv_pick_rent_charge($r['json']);
+}
+
 // ---------- run it. $only = one step key for "retry this step"; null = all pending
 function rv_post(array $q, array $L, ?string $only = null): array {
     $plan = rv_plan($q, $L);

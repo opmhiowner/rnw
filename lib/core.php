@@ -23,7 +23,7 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 1;
+const RNW_REV = 2;
 function rnw_version(): string {
     $r = RNW_REV;
     if ($r < 100) { return '.' . $r; }
@@ -348,7 +348,7 @@ function rnw_defaults(): array {
         'rent_step_dollars'  => '25',    // < > arrows
         'steps'              => '2,4,6,8',
         'deposit_rule'       => 'match_rent',   // new deposit = new rent
-        'display_mode'       => '1',     // 135 % type scale by default
+        'display_mode'       => '0',     // 135 % type scale: off by default (on for the meeting-room TVs, Settings)
         'display_scale'      => '1.35',
         'cl_site'            => 'honolulu',
         'cl_area'            => 'oah',
