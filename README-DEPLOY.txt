@@ -21,7 +21,7 @@ A. Clone next to the other apps
      cd /var/www/apps
      git clone https://github.com/opmhiowner/rnw.git
      ls rnw           # index.php media.php comps.php lib/ api/ ...
-   The folder is "renewal" (not "rnw") so the URL is /rnw/.
+   Repo name = folder name = URL, like sev and sync: /rnw/.
 
 B. Ownership, same as sev
      chown -R www-data:www-data /var/www/apps/rnw
