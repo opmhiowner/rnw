@@ -2,7 +2,7 @@
 
 Web replacement for the OISHI FileMaker "center" renewal database. PHP 8 + vanilla JS + MySQL on the
 DigitalOcean droplet, Hub session auth, deployed like the other portfolio apps (`opmhiowner/<app>` repo,
-DO-only `deploy.yml`). Target URL: `https://apps.oishis.net/renewal/`.
+DO-only `deploy.yml`). Target URL: `https://apps.oishis.net/rnw/`.
 
 **Sep 19 (Larry, after handoff): completely web app, no FileMaker at all.** The renewal queue comes from
 Sync Center's Rentvine mirror (`sync_records`, `sync_leases` on oishi-db), decisions live in this app's own
@@ -26,8 +26,8 @@ SORT.CALC categories: -3 ADDON (month processed), -2 DUEDATE>1, -1 RNW SPEC, 1 M
 6CONDO 7APARTMENT. Sorted within category by zip > pcode.
 
 ## Decisions made with Larry (Sep 19, 2026)
-- **Keep three monitors.** One app, three browser windows (routes): `/renewal/media` (left), `/renewal/`
-  (center = Main), `/renewal/comps` (right). Every route is itself a 3-pane email-style layout.
+- **Keep three monitors.** One app, three browser windows (routes): `/rnw/media` (left), `/rnw/`
+  (center = Main), `/rnw/comps` (right). Every route is itself a 3-pane email-style layout.
 - **Main drives the others.** Main publishes `{record_id, rent_proposal}` on `BroadcastChannel('renewal')`
   on every navigation (queue click, Next/Prev, `←`/`→` keys). Media and Comps subscribe and reload; they
   also read the last record from `localStorage` on load so a reopened window lands on the right record.

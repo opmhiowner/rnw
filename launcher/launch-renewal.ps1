@@ -4,7 +4,7 @@
 # Media window. Edit ONLY the CONFIG block. Run once from Desktop; then use the shortcut.
 
 # ============================== CONFIG ==============================
-$BaseUrl = "https://apps.oishis.net/renewal"
+$BaseUrl = "https://apps.oishis.net/rnw"
 
 # Which monitor gets which window. Monitor numbers come from Windows:
 #   Settings > System > Display > click "Identify" - the big number on each screen.

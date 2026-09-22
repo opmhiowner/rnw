@@ -4,9 +4,9 @@ RENEWAL CENTER v0.1 - lease renewals on three monitors
   web: nothing is read from or written to FileMaker. One copy on the
   droplet serves every office (Hub session decides the office).
 
-  Staff:   https://apps.oishis.net/renewal/        Main   (center monitor)
-           https://apps.oishis.net/renewal/media   Media  (left)
-           https://apps.oishis.net/renewal/comps   Comps  (right)
+  Staff:   https://apps.oishis.net/rnw/        Main   (center monitor)
+           https://apps.oishis.net/rnw/media   Media  (left)
+           https://apps.oishis.net/rnw/comps   Comps  (right)
   Open all three at once with the launcher in launcher/ (see INSTALL.md).
 
 
@@ -35,7 +35,7 @@ WHERE THE DATA COMES FROM
 
 
 FIRST RUN
-  1. Deploy: clone to /var/www/apps/renewal (the URL is /renewal/),
+  1. Deploy: clone to /var/www/apps/rnw (the URL is /rnw/),
      Apache alias like the other apps, deny lib/ and .git. The
      GitHub Action pulls on every merge to main once the three
      DO_* secrets are on the repo.

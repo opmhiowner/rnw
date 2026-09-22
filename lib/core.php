@@ -35,7 +35,7 @@ error_reporting(E_ALL);
 date_default_timezone_set('Pacific/Honolulu');   // until an office is set
 
 // ---------- portfolio paths (Rev 2 pattern)
-// /var/www/apps/renewal    this clone
+// /var/www/apps/rnw    this clone
 // /var/www/apps/core       Hub session library (symlink to hub/core)
 // /var/www/apps/config     per-server DB bootstrap + sync.php, never in git
 function rnw_apps_root(): string { return dirname(RNW_ROOT); }

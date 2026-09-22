@@ -19,12 +19,12 @@ ON THE DROPLET (ssh as the same user the other apps use)
 
 A. Clone next to the other apps
      cd /var/www/apps
-     git clone https://github.com/opmhiowner/rnw.git renewal
-     ls renewal           # index.php media.php comps.php lib/ api/ ...
-   The folder is "renewal" (not "rnw") so the URL is /renewal/.
+     git clone https://github.com/opmhiowner/rnw.git
+     ls rnw           # index.php media.php comps.php lib/ api/ ...
+   The folder is "renewal" (not "rnw") so the URL is /rnw/.
 
 B. Ownership, same as sev
-     chown -R www-data:www-data /var/www/apps/renewal
+     chown -R www-data:www-data /var/www/apps/rnw
      ls -la /var/www/apps/core/auth.php /var/www/apps/config/db.php
    Both must already exist (they do - SEV and Sync use them).
    /var/www/apps/config/sync.php must be readable by www-data too:
@@ -35,17 +35,17 @@ B. Ownership, same as sev
 
 C. Apache
    If the vhost's DocumentRoot is /var/www/apps (how sev at /sev/
-   and sync at /sync/ are served), nothing to add: /renewal/ works
+   and sync at /sync/ are served), nothing to add: /rnw/ works
    as soon as the folder exists. Check with
      grep -rn "apps" /etc/apache2/sites-enabled/
    If the other apps are wired with Alias blocks, add the same for
-   renewal in that vhost:
-     Alias /renewal /var/www/apps/renewal
-     <Directory /var/www/apps/renewal>
+   rnw in that vhost:
+     Alias /rnw /var/www/apps/rnw
+     <Directory /var/www/apps/rnw>
          AllowOverride All
          Require all granted
      </Directory>
-     <DirectoryMatch "^/var/www/apps/renewal/(lib|\.git|design|reference|launcher)">
+     <DirectoryMatch "^/var/www/apps/rnw/(lib|\.git|design|reference|launcher)">
          Require all denied
      </DirectoryMatch>
    then
@@ -54,24 +54,24 @@ C. Apache
    design/, reference/, launcher/, README*, CLAUDE.md, *.json).
 
 D. Let the GitHub Action pull
-   The workflow runs "cd /var/www/apps/renewal && git pull --ff-only
+   The workflow runs "cd /var/www/apps/rnw && git pull --ff-only
    origin main" over ssh. With a public repo the https clone from
    step A pulls with no key. If the repo is private, point the clone
    at the same ssh remote + deploy key the sev clone uses:
      cd /var/www/apps/sev && git remote -v      # copy the pattern
-     cd /var/www/apps/renewal && git remote set-url origin git@github.com:opmhiowner/rnw.git
+     cd /var/www/apps/rnw && git remote set-url origin git@github.com:opmhiowner/rnw.git
    Then push any commit to main (or Actions > Deploy Renewal Center >
    Run workflow) and watch it go green.
 
 E. First load (browser, signed in to the Hub)
-     https://apps.oishis.net/renewal/probe.php
+     https://apps.oishis.net/rnw/probe.php
    Prints the office, whether sync_leases / sync_records are seen,
    one lease as Sync Center holds it, and the fields the app derived.
    If rent / end / deposit / mtm are blank -> the Rentvine key names
    differ; send that page's output and lease_join() gets the names.
-     https://apps.oishis.net/renewal/probe.php?queue=1
+     https://apps.oishis.net/rnw/probe.php?queue=1
    The computed queue with the reason for every row.
-     https://apps.oishis.net/renewal/
+     https://apps.oishis.net/rnw/
    Tables create themselves on this first load - no SQL to run.
 
 F. Settings (button on Main, once per office)
@@ -88,7 +88,7 @@ F. Settings (button on Main, once per office)
 
 G. Hub tile
    Add Renewal Center to the Hub's app list (hub repo) pointing at
-   /renewal/ so staff open it from the portal like SEV.
+   /rnw/ so staff open it from the portal like SEV.
 
 H. Each PC (launcher/INSTALL.md)
    Unzip renewal-launcher-0.1.zip to C:\OishiApps\, set the photo
@@ -106,5 +106,5 @@ FIRST REAL POST
    reply Rentvine gave.
 
 ROLLBACK
-   cd /var/www/apps/renewal && git log --oneline -5 && git checkout <sha>
+   cd /var/www/apps/rnw && git log --oneline -5 && git checkout <sha>
    (tables are additive; an older build ignores newer columns).

@@ -6,7 +6,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^(lib|\.git|design|reference|launcher)(/|$) - [F,L]
-  # pretty routes the launcher uses: /renewal/media  /renewal/comps
+  # pretty routes the launcher uses: /rnw/media  /rnw/comps
   RewriteRule ^media/?$ media.php [L]
   RewriteRule ^comps/?$ comps.php [L]
 </IfModule>
