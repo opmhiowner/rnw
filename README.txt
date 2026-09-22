@@ -170,17 +170,15 @@ POST TO RENTVINE  (bills are NEVER created)
   Also carried over from FileMaker (P.RCHG fields, Sep 21):
   - dayDue on the new rent charge = the day of the existing rent
     charge (FileMaker's DUE), not a fixed 1st.
-  - OPTIONAL 5th step "lease end date": FileMaker's MODIFY.LEASEend
-    posts {"endDate": ...} to /leases/{leaseID}. Off by default
-    (Settings > rv_update_lease_end = 1 turns it on). The record has a
-    "New lease end" field, defaulting to one year from the rent start
-    less a day for fixed terms, blank for MTM. CONFIRM THE RULE with
-    the office before turning it on.
+  - the endDate is set on the EXISTING rent charge only (the expire
+    step); the new charge is created with endDate null. The lease's
+    own end date is not touched (Larry, Sep 22).
+  - the one-time deposit charge posts to /leases/{leaseID}/charges
+    (Larry, Sep 22).
 
-  WHAT IS NOT (marked "unverified" in Settings): only the URL the
-  one-time deposit charge posts to. Default is /leases/{id}/charges.
-  The FileMaker script's "Insert from URL" line for ASD.CHG settles
-  it; put the path into Settings before the first real post.
+  EVERY CALL IS NOW VERIFIED against FileMaker's working curl fields
+  or a captured Rentvine request. Settings still lets any URL or body
+  be changed without a redeploy if Rentvine changes.
   "Send test" on a record does the reads for real and lists the
   lease's recurring charges and the rent / deposit GL accounts so
   the ids can be filled from what Rentvine returns.

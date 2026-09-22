@@ -306,9 +306,7 @@ function schema_ensure(): void {
 
     // columns added after v0.1
     $addcols = [];
-    $addcols['renewal_queue']['new_lease_end']   = "ALTER TABLE renewal_queue ADD COLUMN new_lease_end DATE NULL AFTER increase_date";
     $addcols['renewal_queue']['rv_day_due']      = "ALTER TABLE renewal_queue ADD COLUMN rv_day_due SMALLINT NULL AFTER rv_old_charge_id";
-    $addcols['renewal_queue']['rv_lease_end_at'] = "ALTER TABLE renewal_queue ADD COLUMN rv_lease_end_at DATETIME NULL AFTER rv_sdr_charge_id";
     foreach ($addcols as $table => $cols) {
         $have = [];
         foreach ($pdo->query("SHOW COLUMNS FROM `$table`") as $r) { $have[$r['Field']] = true; }

@@ -49,15 +49,14 @@ declare(strict_types=1);
 //     value = the rent INCREASE date. Field 3 = Last Renewal Date for this account.
 // VERIFIED (Larry, Sep 21) MODIFY.LEASE.URL = {base}/custom-fields/values/4/{leaseID}
 //   - 4 is Rentvine's object type id for Lease. Body {"<customFieldID>":"<value>"}.
-//   FileMaker also has MODIFY.LEASEend.URL = {base}/leases/{leaseID} (lease-level
+//   (FileMaker's MODIFY.LEASEend field is the endDate on the existing rent charge - Larry, Sep 22 - not the lease itself.)
 //   update, e.g. a new lease end date) - not one of the four steps here.
-// VERIFIED (Larry, Sep 21, P.RCHG field list): MODIFY.LEASEend.URL = {base}/leases/{leaseID}
-//   with body {"endDate":...} = the lease's own end date (optional 5th step here,
-//   rv_update_lease_end). DUE = last digit of the rent charge's nextChargeDate ->
-//   dayDue is carried over from the existing rent charge, not assumed to be 1.
-//   RENTCHG.NO.calc reads "transactionID" out of the one-time charge reply.
-// STILL UNVERIFIED: the URL the one-time deposit charge posts to. Default below
-//   is the natural REST path; confirm in Settings before the first real post.
+// VERIFIED (Larry, Sep 21/22): the deposit charge posts to {base}/leases/{leaseID}/charges.
+//   DUE = the rent charge's due day -> dayDue is carried over from the existing rent
+//   charge. RENTCHG.NO.calc reads "transactionID" out of the one-time charge reply.
+//   The endDate belongs to the EXISTING rent charge only (the expire step); the new
+//   charge is created with endDate null. The lease's own end date is not touched.
+// Every call below is verified. Settings can still override any of them.
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
@@ -72,10 +71,6 @@ function rv_templates_default(): array {
         'rv_sdr_url'            => '{base}/leases/{lease_id}/charges',
         'rv_sdr_method'         => 'POST',
         'rv_sdr_body'           => '{"datePosted":"{date_us}","amount":{amount},"description":"Security deposit increase","chargeAccountID":"{deposit_account_id}"}',
-        'rv_update_lease_end'   => '0',           // 1 = also move the lease's own end date (FileMaker MODIFY.LEASEend)
-        'rv_leaseend_url'       => '{base}/leases/{lease_id}',
-        'rv_leaseend_method'    => 'POST',
-        'rv_leaseend_body'      => '{"endDate":"{lease_end_us}"}',
         'rv_custom_url'         => '{base}/custom-fields/values/4/{lease_id}',
         'rv_custom_method'      => 'POST',
         'rv_custom_body'        => '{"{custom_field_id}":"{start_date_us}"}',
@@ -90,8 +85,7 @@ function rv_verified(): array {
     return ['rv_charges_list_url' => true, 'rv_charges_list_method' => true,
             'rv_expire_url' => true, 'rv_expire_method' => true, 'rv_expire_body' => true,
             'rv_create_url' => true, 'rv_create_method' => true, 'rv_create_body' => true,
-            'rv_sdr_url' => false, 'rv_sdr_method' => true, 'rv_sdr_body' => true,
-            'rv_leaseend_url' => true, 'rv_leaseend_method' => true, 'rv_leaseend_body' => true,
+            'rv_sdr_url' => true, 'rv_sdr_method' => true, 'rv_sdr_body' => true,
             'rv_custom_url' => true, 'rv_custom_method' => true, 'rv_custom_body' => true];
 }
 function rv_tpl(string $k): string { return (string)setting($k, rv_templates_default()[$k] ?? ''); }
@@ -196,9 +190,7 @@ function rv_plan(array $q, array $L): array {
         'deposit_account_id' => rv_tpl('rv_deposit_account_id') ?: 'null',
         'custom_field_id' => rv_tpl('rv_custom_field_id') ?: 'null',
         'day_due' => (int)($q['rv_day_due'] ?? 0) > 0 ? (int)$q['rv_day_due'] : 1,
-        'lease_end' => $q['new_lease_end'] ?? '', 'lease_end_us' => !empty($q['new_lease_end']) ? date('m/d/Y', strtotime($q['new_lease_end'])) : '',
     ];
-    $leaseEndOn = rv_tpl('rv_update_lease_end') === '1' && !empty($q['new_lease_end']);
     $steps = [];
     $steps[] = ['key' => 'find', 'label' => 'Find the current rent recurring charge',
         'method' => rv_tpl('rv_charges_list_method'), 'url' => rv_fill(rv_tpl('rv_charges_list_url'), $vars), 'body' => null,
@@ -215,9 +207,6 @@ function rv_plan(array $q, array $L): array {
         'method' => rv_tpl('rv_sdr_method'), 'url' => rv_fill(rv_tpl('rv_sdr_url'), $vars),
         'body' => $sdr > 0 ? rv_fill(rv_tpl('rv_sdr_body'), $vars + ['amount' => number_format($sdr, 2, '.', '')]) : null,
         'done' => !empty($q['rv_sdr_charge_id']) || $sdr <= 0];
-    $steps[] = ['key' => 'leaseend', 'label' => $leaseEndOn ? 'Lease end date -> ' . $q['new_lease_end'] : 'Lease end date not changed (Settings: rv_update_lease_end' . (empty($q['new_lease_end']) ? ', and no new lease end on the record' : '') . ')',
-        'method' => rv_tpl('rv_leaseend_method'), 'url' => rv_fill(rv_tpl('rv_leaseend_url'), $vars), 'body' => $leaseEndOn ? rv_fill(rv_tpl('rv_leaseend_body'), $vars) : null,
-        'done' => !empty($q['rv_lease_end_at']) || !$leaseEndOn];
     $steps[] = ['key' => 'custom', 'label' => rv_tpl('rv_custom_field_name') . ' (field ' . rv_tpl('rv_custom_field_id') . ') = ' . $start . ' (the rent increase date, as FileMaker did)',
         'method' => rv_tpl('rv_custom_method'), 'url' => rv_fill(rv_tpl('rv_custom_url'), $vars), 'body' => rv_fill(rv_tpl('rv_custom_body'), $vars),
         'done' => !empty($q['rv_custom_field_at'])];
@@ -325,18 +314,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $log[] = ['step' => 'sdr', 'ok' => true, 'note' => 'ledger charge ' . $nid . ' $' . number_format($sdr, 2)];
         log_event((int)$q['id'], 'rv_sdr', ['lease_id' => $q['lease_id'], 'detail' => ['charge' => $nid, 'amount' => $sdr, 'reply' => mb_substr($r['body'], 0, 2000)]]);
     }
-    // 5. lease end date (optional, FileMaker MODIFY.LEASEend)
-    $leaseEndOn = rv_tpl('rv_update_lease_end') === '1' && !empty($q['new_lease_end']);
-    if ($leaseEndOn && empty($q['rv_lease_end_at']) && ($only === null || $only === 'leaseend')) {
-        $s = $steps['leaseend'];
-        $r = rv_call($s['method'], $s['url'], $s['body']);
-        if (!$r['ok']) { return $fail('leaseend', $r); }
-        $pdo->prepare("UPDATE renewal_queue SET rv_lease_end_at = NOW() WHERE id = ?")->execute([$q['id']]);
-        $q['rv_lease_end_at'] = date('Y-m-d H:i:s');
-        $log[] = ['step' => 'leaseend', 'ok' => true, 'note' => 'lease end -> ' . $q['new_lease_end']];
-        log_event((int)$q['id'], 'rv_leaseend', ['lease_id' => $q['lease_id'], 'detail' => ['end' => $q['new_lease_end'], 'reply' => mb_substr($r['body'], 0, 2000)]]);
-    }
-    // 6. custom field
+    // 5. custom field
     if (empty($q['rv_custom_field_at']) && ($only === null || $only === 'custom')) {
         $s = $steps['custom'];
         $r = rv_call($s['method'], $s['url'], $s['body']);
@@ -347,7 +325,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         log_event((int)$q['id'], 'rv_custom', ['lease_id' => $q['lease_id'], 'detail' => ['reply' => mb_substr($r['body'], 0, 2000)]]);
     }
     $allDone = !empty($q['rv_old_charge_expired_at']) && !empty($q['rv_new_charge_id'])
-            && ($sdr <= 0 || !empty($q['rv_sdr_charge_id'])) && (!$leaseEndOn || !empty($q['rv_lease_end_at'])) && !empty($q['rv_custom_field_at']);
+            && ($sdr <= 0 || !empty($q['rv_sdr_charge_id'])) && !empty($q['rv_custom_field_at']);
     if ($allDone && $q['status'] !== 'posted') {
         $u = current_user();
         $pdo->prepare("UPDATE renewal_queue SET status = 'posted', posted_at = NOW(), posted_by = ? WHERE id = ?")

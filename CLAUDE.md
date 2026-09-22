@@ -152,14 +152,15 @@ README.txt is the operator's guide. Files: `lib/core.php` `lib/sync.php` `lib/re
 **Assumptions to confirm on first deploy (all adjustable without a redeploy where noted):**
 1. Rentvine key names for rent / endDate / leaseTypeID / securityDeposit / moveOutDate / customFields —
    read tolerantly in `lease_join()`; `probe.php` shows the live record. Code change if wrong.
-2. Rentvine write endpoints and bodies — Settings › Rentvine (no redeploy). **Sep 21 research:** the
-   base URL (`https://<account>.rentvine.com/api/manager`), Basic auth, and the reads (lease, recurring
-   charges with `account.isRent`, accounts) are verified against the open-source client
-   Launch-Engine/rentvine; the four writes are still unverified because docs.rentvine.com and
-   rentvine.com are blocked from the build container. Settings marks each template verified/unverified,
-   and "Send test" lists the lease's recurring charges and candidate GL accounts from the live API.
-   Needs the deposit GL account id and the custom field id (the rent account id is learned from the
-   live rent charge).
+2. Rentvine write endpoints and bodies — Settings › Rentvine (no redeploy). **Sep 21–22: all verified**
+   against FileMaker's working curl fields (Larry's screenshots) and one captured Rentvine UI request:
+   base `https://oishispm.rentvine.com/api/manager`, Basic auth; find rent charge by `account.isRent`;
+   expire = POST `/leases/{id}/recurring-charges/{chargeId}` `{"endDate":"MM/DD/YYYY"}`; create = POST
+   `/leases/{id}/recurring-charges` `{accountID, amount, dayDue (from the old charge), description,
+   endDate:null, frequency:1, startDate}`; deposit = POST `/leases/{id}/charges` `{datePosted, amount,
+   description, chargeAccountID}`; Last Renewal Date = POST `/custom-fields/values/4/{id}` `{"3":"<rent
+   increase date>"}`. Still needs the deposit GL account id in Settings (rent account is learned live).
+   The Rentvine key visible in the screenshots must be rotated; the $1 "test" charge on lease 3606 deleted.
 3. O.Letter ranges — RANGE TOP/BOTTOM default from comp median (+10 % / −15 %) or current rent
    (+15 % / −10 %); BASELINE/RENTSTART/RENTDROP are the 60/80/92 % positions. `ranges_for()` in
    `api/board.php` if the letters need FileMaker's exact formulas.
