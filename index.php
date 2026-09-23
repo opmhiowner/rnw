@@ -248,7 +248,7 @@ $me = require_login();
   function renderRecord() {
     const L = S.rec.lease, q = S.rec.q, R = S.rec.ranges;
     $('h-prop').textContent = (L.property || L.address || 'Lease ' + L.lease_id) + (L.unit ? ' #' + L.unit : '');
-    $('h-pcode').textContent = L.pcode || L.lease_id;
+    $('h-pcode').textContent = L.pcode || L.lease_id; $('h-pcode').title = L.code || '';
     $('h-cat').textContent = S.rec.cat_label; $('h-cat').className = 'tag lg c' + S.rec.cat; $('h-cat').title = S.rec.reason;
     $('h-ptype').textContent = L.ptype || ''; $('h-ptype').classList.toggle('hide', !L.ptype);
     $('h-status').textContent = q.status === 'open' ? '' : q.status; $('h-status').className = 'tag lg ' + q.status; $('h-status').classList.toggle('hide', q.status === 'open');
@@ -270,7 +270,8 @@ $me = require_login();
     const yrs = L.move_in ? ((Date.now() - new Date(L.move_in)) / 31557600000).toFixed(1) : '—';
     $('lease-grid').innerHTML = [['Move in', fmt.date(L.move_in)], ['Lease end', L.mtm ? (L.end ? fmt.date(L.end) + ' (MTM)' : 'MTM') : fmt.date(L.end)], ['Lease yrs', yrs],
       ['Type', L.mtm ? 'Month-to-month' : 'Fixed'], ['Bed / bath', (L.bed ?? '—') + ' / ' + (L.bath ?? '—')], ['Sq ft · parking', (L.sqft ?? '—') + ' · ' + (L.parking || '—')],
-      ['Next rent', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Rentvine lease', L.lease_id + (L.rent_source ? ' · rent from ' + L.rent_source : '')]]
+      ['Next rent', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Increase eligible (Rentvine)', fmt.date(L.next_increase)],
+      ['Rentvine lease', L.lease_id + (L.code ? ' · ' + L.code : '') + (L.rent_source ? ' · rent from ' + L.rent_source : '')]]
       .map(([k, v]) => `<div class="fld"><span>${k}</span><strong>${fmt.esc(v)}</strong></div>`).join('');
     $('hist-n').textContent = S.rec.history.length + ' other unit' + (S.rec.history.length === 1 ? '' : 's');
     $('hist').innerHTML = [{ unit: L.unit, bed: L.bed, bath: L.bath, parking: L.parking, rent: L.rent, last_increase: L.last_renewal || L.last_increase, move_in: L.move_in, tenant: L.tenant, me: true }]

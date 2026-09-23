@@ -34,6 +34,24 @@ WHERE THE DATA COMES FROM
               hands them to the Media window. Nothing is uploaded.
 
 
+FIELD MAPPING (confirmed 2026-09-23 on the live mirror)
+  rent, deposit, beds, full/half baths, size  -> the "unit" block of
+      the leases record (rent also comes live from the rent charge)
+  property label / street                     -> property.address /
+      property.address2 ("#1 Davenport Apartment" / "1109 Davenport St #1")
+  property code (FileMaker pcode, photo folder) -> the unit's
+      importSourceKey / name ("dav001"); the Rentvine lease code
+      "228240-dav001" is kept as "code"
+  month-to-month  -> lease.isMonthToMonth / monthToMonthStartDate, or
+      an endDate in 2049 (Rentvine's "no end" placeholder)
+  last increase   -> lease.increaseEligibilityDate minus one year
+      (Rentvine pushes that date a year out at each increase);
+      next increase = increaseEligibilityDate itself
+  moving out      -> moveOutDate / expectedMoveOutDate / noticeDate /
+      isMarkedToVacate
+  propertyTypeID  -> only 2 = HOUSE is mapped so far; others show
+      "type N" until confirmed (RNW_PTYPES in lib/sync.php)
+
 FIRST RUN
   1. Deploy: clone to /var/www/apps/rnw (the URL is /rnw/),
      Apache alias like the other apps, deny lib/ and .git. The

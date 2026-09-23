@@ -115,36 +115,60 @@ function lease_join(array $ix, array $F): array {
     $id   = (string)sx($ix, ['external_id', 'id', 'lease_id', 'leaseID']);
     $rec  = $F['leases'][$id] ?? [];
     $L    = lease_core($rec);
+    // CONFIRMED 2026-09-23 against the live mirror (probe.php): the leases feed record is
+    // {"unit":{beds, fullBaths, halfBaths, size, rent, deposit, address, address2, postalCode,
+    //  city, isVacant}, "lease":{code, startDate, endDate, moveInDate, moveOutDate, noticeDate,
+    //  expectedMoveOutDate, closedDate, isMonthToMonth, monthToMonthStartDate,
+    //  increaseEligibilityDate, isMarkedToVacate, leaseStatusID, tenants[]}, "token"}.
+    // endDate 2049-09-09 is Rentvine's "no end" placeholder. Rent lives on the unit block
+    // (and on the recurring charge), never on the lease itself.
+    $LU   = isset($rec['unit']) && is_array($rec['unit']) ? $rec['unit'] : [];
     $pid  = (string)(sx($ix, ['property_id', 'propertyId']) ?? sx($L, ['propertyID', 'propertyId', 'property_id']) ?? '');
     $uid  = (string)(sx($ix, ['unit_id', 'unitId']) ?? sx($L, ['unitID', 'unitId', 'unit_id']) ?? '');
     $oid_ = (string)(sx($ix, ['owner_id', 'ownerId']) ?? sx($L, ['ownerID', 'ownerId']) ?? '');
     $tid  = (string)(sx($ix, ['tenant_id', 'tenantId']) ?? sx($L, ['tenantID', 'tenantId']) ?? '');
     $P = $F['properties'][$pid] ?? [];  $P = isset($P['property']) && is_array($P['property']) ? $P['property'] : $P;
-    $U = $F['units'][$uid] ?? [];       $U = isset($U['unit']) && is_array($U['unit']) ? $U['unit'] : $U;
+    $UR = $F['units'][$uid] ?? [];
+    $U = isset($UR['unit']) && is_array($UR['unit']) ? $UR['unit'] : $UR;
+    if (!$P && isset($UR['property']) && is_array($UR['property'])) { $P = $UR['property']; }
     $O = $F['owners'][$oid_] ?? [];     $O = isset($O['owner']) && is_array($O['owner']) ? $O['owner'] : $O;
+    if (!$U) { $U = $LU; }
 
-    $addr = (string)(sx($ix, ['address', 'property_ref']) ?? '');
-    $addr = preg_replace('/^[^—]*—\s*/u', '', $addr);   // Sync Center prefixes "legacy — address"
-    $pcode = (string)(sx($ix, ['legacy']) ?? sx($P, ['propertyCode', 'code', 'abbreviation', 'shortName', 'referenceNumber']) ?? '');
-    $zip = (string)(sx($P, ['postalCode', 'zip', 'zipCode', 'address.postalCode', 'address.zip']) ?? '');
-    if ($zip === '' && preg_match('/\b(9\d{4})\b/', $addr, $m)) { $zip = $m[1]; }
+    // Rentvine "address" is the descriptive label ("#1 Davenport Apartment"); "address2" is
+    // the street ("1109 Davenport St #1"). Property label = address; postal address = address2.
+    $label  = (string)(sx($P, ['address']) ?? sx($LU, ['address']) ?? sx($ix, ['address']) ?? '');
+    $label  = preg_replace('/^[^—]*—\s*/u', '', $label);
+    $street = (string)(sx($P, ['address2']) ?? sx($LU, ['address2']) ?? sx($U, ['address2']) ?? '');
+    $city   = (string)(sx($P, ['city']) ?? sx($LU, ['city']) ?? '');
+    $zip    = (string)(sx($P, ['postalCode', 'zip', 'zipCode']) ?? sx($LU, ['postalCode']) ?? '');
+    if ($zip === '' && preg_match('/\b(9\d{4})\b/', $label, $m)) { $zip = $m[1]; }
+    $addr = trim(($street !== '' ? $street : $label) . ($city !== '' ? ', ' . $city : '') . ($zip !== '' ? ' ' . $zip : ''), ', ');
+    $legacy = (string)(sx($L, ['code']) ?? sx($ix, ['legacy']) ?? sx($P, ['propertyCode', 'code']) ?? '');
+    // the FileMaker property code is the unit's import key ("dav001"); the Rentvine lease
+    // code is "228240-dav001". Photos and staff know the short one.
+    $unitName = (string)(sx($U, ['importSourceKey', 'name', 'unitName', 'number']) ?? sx($LU, ['name']) ?? sx($ix, ['unit', 'unit_ref']) ?? '');
+    $pcode = $unitName !== '' ? $unitName : (str_contains($legacy, '-') ? substr($legacy, strrpos($legacy, '-') + 1) : $legacy);
+    $multi = (string)(sx($P, ['isMultiUnit']) ?? '0') === '1';
 
     $start = sx_date($L, ['startDate', 'leaseStartDate', 'start_date']) ?? sx_date($ix, ['move_in', 'start_date']);
     $moveIn = sx_date($L, ['moveInDate', 'move_in_date']) ?? sx_date($ix, ['move_in']) ?? $start;
     $end = sx_date($L, ['endDate', 'leaseEndDate', 'end_date', 'expirationDate']);
-    $moveOut = sx_date($L, ['moveOutDate', 'move_out_date', 'noticeMoveOutDate', 'expectedMoveOutDate']);
-    $notice = sx_date($L, ['noticeDate', 'noticeGivenDate', 'move_out_notice_date']);
+    $openEnded = $end !== null && (int)substr($end, 0, 4) >= 2040;   // 2049-09-09 = no end
+    if ($openEnded) { $end = null; }
+    $moveOut = sx_date($L, ['moveOutDate', 'expectedMoveOutDate', 'moveOutUnitAvailabilityDate', 'move_out_date']);
+    $notice = sx_date($L, ['noticeDate', 'noticeGivenDate']);
+    $vacating = (string)(sx($L, ['isMarkedToVacate']) ?? '0') === '1';
     $closed = sx_date($L, ['closedDate']);
-    $typeRaw = sx($L, ['leaseTypeID', 'leaseType', 'lease_type', 'term', 'termType']);
     $mtmFlag = sx($L, ['isMonthToMonth', 'monthToMonth', 'month_to_month']);
-    $mtm = false;
-    if ($mtmFlag !== null) { $mtm = in_array(strtolower((string)$mtmFlag), ['1', 'true', 'yes'], true); }
-    elseif ($typeRaw !== null) { $t = strtolower((string)$typeRaw); $mtm = str_contains($t, 'month') || $t === '2'; }
-    elseif ($end !== null && $end < date('Y-m-d')) { $mtm = true; }   // expired fixed term rolls to MTM
-    $rent = sx_num($L, ['rent', 'rentAmount', 'monthlyRent', 'currentRent', 'amount', 'rent.amount']);
-    $deposit = sx_num($L, ['securityDeposit', 'securityDepositAmount', 'depositAmount', 'deposit', 'deposits.security']);
-    $lastInc = sx_date($L, ['lastRentIncreaseDate', 'lastIncreaseDate', 'rentIncreaseDate', 'lastRenewalDate']);
-    $lastRenewal = sx_date($L, ['customFields.Last Renewal Date', 'customFields.lastRenewalDate', 'lastRenewalDate']);
+    $mtmStart = sx_date($L, ['monthToMonthStartDate']);
+    $mtm = in_array(strtolower((string)$mtmFlag), ['1', 'true', 'yes'], true) || $mtmStart !== null || $openEnded;
+    if (!$mtm && $mtmFlag === null && $end !== null && $end < date('Y-m-d')) { $mtm = true; }   // expired fixed term rolls to MTM
+    $rent = sx_num($LU, ['rent']) ?? sx_num($U, ['rent']) ?? sx_num($L, ['rent', 'rentAmount', 'monthlyRent']);
+    $deposit = sx_num($LU, ['deposit']) ?? sx_num($U, ['deposit']) ?? sx_num($L, ['securityDeposit', 'depositAmount', 'deposit']);
+    $eligible = sx_date($L, ['increaseEligibilityDate']);
+    // Rentvine moves increaseEligibilityDate a year out at each increase: the last increase is a year before it
+    $lastInc = sx_date($L, ['lastRentIncreaseDate', 'lastIncreaseDate']) ?? ($eligible ? date('Y-m-d', strtotime($eligible . ' -1 year')) : null);
+    $lastRenewal = sx_date($L, ['customFields.Last Renewal Date', 'lastRenewalDate']);
     if ($lastRenewal === null && isset($L['customFields']) && is_array($L['customFields'])) {
         foreach ($L['customFields'] as $cf) {
             if (!is_array($cf)) { continue; }
@@ -152,23 +176,28 @@ function lease_join(array $ix, array $F): array {
             if (str_contains($n, 'renewal')) { $lastRenewal = sx_date($cf, ['value', 'fieldValue']); break; }
         }
     }
-    $bed = sx_num($U, ['bedrooms', 'beds', 'bedroomCount', 'bed']);
-    $bath = sx_num($U, ['bathrooms', 'baths', 'bathroomCount', 'bath']);
-    $sqft = sx_num($U, ['squareFeet', 'sqft', 'squareFootage', 'size']);
+    $bed = sx_num($U, ['beds', 'bedrooms', 'bed']) ?? sx_num($LU, ['beds']);
+    $fb = sx_num($U, ['fullBaths']) ?? sx_num($LU, ['fullBaths']); $hb = sx_num($U, ['halfBaths']) ?? sx_num($LU, ['halfBaths']);
+    $bath = $fb !== null ? $fb + 0.5 * ($hb ?? 0) : sx_num($U, ['bathrooms', 'baths', 'bath']);
+    $sqft = sx_num($U, ['size', 'squareFeet', 'sqft']) ?? sx_num($LU, ['size']);
     $park = sx($U, ['parking', 'parkingSpaces', 'parkingStalls']);
-    $ptype = (string)(sx($P, ['propertyType', 'type', 'propertyTypeName']) ?? sx($U, ['unitType', 'type']) ?? '');
+    $ptypeId = (string)(sx($P, ['propertyTypeID']) ?? '');
+    $ptype = $ptypeId !== '' ? (RNW_PTYPES[$ptypeId] ?? ('type ' . $ptypeId)) : (string)(sx($P, ['propertyType', 'type']) ?? '');
+    $tenantIx = (string)(sx($ix, ['tenant', 'tenant_names']) ?? '');
+    if ($tenantIx === '' && isset($L['tenants']) && is_array($L['tenants'])) { $tenantIx = implode('/ ', array_filter(array_map(fn($t) => is_array($t) ? (string)sx($t, ['name', 'fullName'], '') : (string)$t, $L['tenants']))); }
 
     return [
         'lease_id'     => $id,
-        'tenant'       => (string)(sx($ix, ['tenant', 'tenant_names']) ?? ''),
+        'tenant'       => $tenantIx,
         'phone'        => (string)(sx($ix, ['phone', 'tenant_phones']) ?? ''),
         'email'        => (string)(sx($ix, ['email', 'tenant_emails']) ?? ''),
         'address'      => $addr,
-        'unit'         => (string)(sx($ix, ['unit', 'unit_ref']) ?? sx($U, ['name', 'unitName', 'number', 'unitNumber']) ?? ''),
-        'property'     => (string)(sx($P, ['name', 'propertyName']) ?? ($addr !== '' ? preg_replace('/,.*$/', '', $addr) : '')),
+        'unit'         => ($multi || ($unitName !== '' && $unitName !== $pcode)) ? $unitName : '',
+        'property'     => $label !== '' ? $label : ($street !== '' ? $street : $pcode),
         'pcode'        => $pcode,
+        'code'         => $legacy,
         'zip'          => $zip,
-        'city'         => (string)(sx($P, ['city', 'address.city']) ?? ''),
+        'city'         => $city,
         'owner'        => (string)(sx($ix, ['owner']) ?? sx($O, ['name', 'fullName', 'displayName', 'companyName']) ?? ''),
         'portfolio'    => (string)(sx($ix, ['portfolio']) ?? ''),
         'property_id'  => $pid, 'unit_id' => $uid, 'owner_id' => $oid_, 'tenant_id' => $tid,
@@ -176,16 +205,24 @@ function lease_join(array $ix, array $F): array {
         'bed' => $bed, 'bath' => $bath, 'sqft' => $sqft, 'parking' => $park === null ? '' : (string)$park,
         'rent'         => $rent,
         'deposit'      => $deposit,
-        'start'        => $start, 'move_in' => $moveIn, 'end' => $end,
-        'move_out'     => $moveOut, 'notice' => $notice, 'closed' => $closed,
+        'start'        => $start, 'move_in' => $moveIn, 'end' => $end, 'open_ended' => $openEnded,
+        'move_out'     => $moveOut, 'notice' => $notice, 'vacating' => $vacating, 'closed' => $closed,
         'mtm'          => $mtm,
         'last_increase'=> $lastInc,
+        'next_increase'=> $eligible,
         'last_renewal' => $lastRenewal,
-        'active'       => sync_row_active($ix, $closed, $end),
+        'active'       => sync_row_active($ix, $closed, $end) && (string)(sx($U, ['isVacant']) ?? '0') !== '1',
         'status_raw'   => (string)(sx($L, ['leaseStatusID', 'status']) ?? sx($ix, ['status']) ?? ''),
         'has_record'   => $rec !== [],
     ];
 }
+
+// Rentvine propertyTypeID -> label. Only the ids seen on the live mirror are
+// mapped; unknown ids show as "type N" until confirmed (Settings can't change
+// this yet - add rows here).
+const RNW_PTYPES = [
+    '2' => 'HOUSE',
+];
 
 function sync_row_active(array $ix, ?string $closed, ?string $end): bool {
     if ($closed !== null) { return false; }
@@ -271,7 +308,7 @@ function queue_rule(array $L, ?array $Q, string $today): ?array {
         if ($doneAt && substr((string)$doneAt, 0, 7) === substr($today, 0, 7)) { return [-3, 'processed ' . substr((string)$doneAt, 0, 10)]; }
         return null;
     }
-    if ($L['move_out'] || $L['notice']) { return [1, 'move-out ' . ($L['move_out'] ?? $L['notice'])]; }
+    if ($L['move_out'] || $L['notice'] || !empty($L['vacating'])) { return [1, 'move-out ' . ($L['move_out'] ?? $L['notice'] ?? 'marked to vacate')]; }
     if ($Q && $Q['special'])  { return [-1, 'special']; }
     if ($Q && $Q['revisit'])  { return [3, 'revisit']; }
     if ($Q && $Q['oa'])       { return [4, 'owner approval']; }

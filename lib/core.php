@@ -23,7 +23,7 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 2;
+const RNW_REV = 3;
 function rnw_version(): string {
     $r = RNW_REV;
     if ($r < 100) { return '.' . $r; }
