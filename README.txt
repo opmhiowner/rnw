@@ -345,3 +345,15 @@ OPEN FROM FILEMAKER (v.6 - the SEV Center pattern)
   the office are accepted too (read from sev_settings on the same
   database), so one key in FileMaker opens both apps. Renewal's own
   settings, when filled in, win.
+
+FILEMAKER DATA ON THE SAME DATABASE (v.6)
+  The renewal file's own records are on oishi-db as fmp_renewals
+  (one row per property code, plus the other fmp_* tables). Main
+  shows them in the right pane as "FileMaker renewal record":
+  last inspected / by / time / type, property and tenant grade,
+  recommended rent, lease yrs, ASD, the X box, IA and OA (date,
+  dropdown, story) and remarks. Edit and press "Save FileMaker
+  fields" (or Enter inside one of them): the fmp_renewals row is
+  updated in place, or created when FileMaker never had one for
+  that pcode. Saving the decision (Enter elsewhere) does not touch
+  it. Every save is logged in renewal_events as fmp_save.

@@ -173,6 +173,11 @@ $me = require_login();
         <div style="font-size:12px;color:var(--ink2)" id="rv-state">Not posted.</div>
         <div class="row"><button class="btn sm" id="btn-rv-plan">Preview the 4 steps</button><button class="btn sm" id="btn-events">Activity</button></div>
       </div>
+      <div class="card white hide" id="fmp-card">
+        <div class="row between"><h3>FileMaker renewal record</h3><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
+        <div class="kv" id="fmp-fields" style="font-size:12px"></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn sm pri" id="btn-fmp-save">Save FileMaker fields</button></div>
+      </div>
       <div class="card white">
         <h3>Past renewals</h3>
         <div id="past" style="font-size:12px;display:flex;flex-direction:column;gap:3px"></div>
@@ -320,6 +325,7 @@ $me = require_login();
     ['eval_top', 'eval_recom', 'eval_bottom', 'notes', 'remarks'].forEach(k => $('f-' + k.replace('_', '-')).value = q[k] || '');
     const P = S.rec.property || {};
     $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-color').value = P.color || '#ffffff';
+    renderFmp();
     $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle).map(p => `<div class="row between"><span>${fmt.cycle(p.cycle)} <span class="tag ${p.status}">${p.status}</span></span><span class="mono">${fmt.money(p.current_rent)} → ${fmt.money(p.new_rent)} ${p.pct_inc !== null ? '(' + fmt.pct(p.pct_inc) + ')' : ''}</span></div>`).join('') || '<span class="muted">none in this app yet</span>';
     const fin = !!S.rec.finalized;
     $('btn-prep').disabled = fin;
@@ -422,11 +428,37 @@ $me = require_login();
     if (n) pick(n.lease_id);
   }
 
+  // ---------- the FileMaker renewal record (fmp_renewals, by pcode): shown and edited here
+  function renderFmp() {
+    const F = S.rec.fmp || {};
+    $('fmp-card').classList.toggle('hide', !F.ready);
+    if (!F.ready) return;
+    const row = F.row || {};
+    $('fmp-when').textContent = row.imported_at ? 'imported ' + String(row.imported_at).slice(0, 10) : 'no FileMaker row for this pcode yet';
+    $('fmp-fields').innerHTML = Object.entries(F.fields).map(([k, [label, kind]]) => {
+      const v = row[k] === null || row[k] === undefined ? '' : String(row[k]);
+      if (kind === 'ro') return v ? `<label>${fmt.esc(label)}</label><span class="muted">${fmt.esc(v)}</span>` : '';
+      if (kind === 'long') return `<label>${fmt.esc(label)}</label><textarea class="in" data-fmp="${k}" rows="2">${fmt.esc(v)}</textarea>`;
+      const type = kind === 'date' ? 'date' : (kind === 'num' ? 'number' : 'text');
+      const val = kind === 'date' ? v.slice(0, 10) : (kind === 'num' && v !== '' ? String(Number(v)) : v);
+      return `<label>${fmt.esc(label)}</label><input class="in" data-fmp="${k}" type="${type}" ${kind === 'num' ? 'step="0.01"' : ''} value="${fmt.esc(val)}">`;
+    }).join('');
+    $('fmp-fields').querySelectorAll('[data-fmp]').forEach(i => i.addEventListener('input', () => { $('btn-fmp-save').textContent = 'Save FileMaker fields •'; }));
+    $('btn-fmp-save').disabled = !!S.rec.finalized; $('btn-fmp-save').textContent = 'Save FileMaker fields';
+  }
+  $('btn-fmp-save').onclick = async () => {
+    if (!S.sel) return;
+    const fields = {}; $('fmp-fields').querySelectorAll('[data-fmp]').forEach(i => fields[i.dataset.fmp] = i.value);
+    const j = await api('fmp_save', { lease_id: S.sel, cycle: S.cycle, fields });
+    if (!j.ok) { toast(j.error, true); return; }
+    S.rec.fmp = j.fmp; renderFmp(); toast('FileMaker record saved');
+  };
+
   // ---------- keys: Enter = Save, ← → = prev/next (outside text areas)
   document.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
     if (!$('modal').classList.contains('hide')) { if (e.key === 'Escape') closeModal(); return; }
-    if (e.key === 'Enter' && tag !== 'textarea' && tag !== 'button') { e.preventDefault(); save(false); }
+    if (e.key === 'Enter' && tag !== 'textarea' && tag !== 'button') { e.preventDefault(); if (e.target.dataset && e.target.dataset.fmp !== undefined) $('btn-fmp-save').click(); else save(false); }
     if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && tag !== 'input' && tag !== 'textarea' && tag !== 'select') { e.preventDefault(); next(e.key === 'ArrowRight' ? 1 : -1); }
   });
 

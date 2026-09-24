@@ -14,6 +14,7 @@ require __DIR__ . '/../lib/core.php';
 require __DIR__ . '/../lib/sync.php';
 require __DIR__ . '/../lib/rentvine.php';
 require __DIR__ . '/../lib/craigslist.php';
+require __DIR__ . '/../lib/fmp.php';
 schema_ensure();
 $me = require_login();
 
@@ -147,6 +148,7 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     [$anchor, $anchorSrc] = increase_anchor($L, $LP[$leaseId] ?? null);
     return ['lease' => lease_out($L), 'q' => $q, 'ranges' => ranges_for($q, $L), 'history' => $hist,
             'media' => media_row($L['pcode'] ?: $L['property_id']), 'property' => property_row($L['pcode']),
+            'fmp' => ['ready' => fmp_ready(), 'fields' => fmp_renewal_fields(), 'row' => fmp_renewal((string)$L['pcode'])],
             'past' => q_history($leaseId),
             'cycle' => cycle_info($cycle), 'finalized' => cycle_finalized($cycle),
             'anchor' => ['date' => $anchor, 'source' => $anchorSrc],
@@ -468,6 +470,17 @@ case 'rv_post': {
     $only = isset($in['only']) ? (string)$in['only'] : null;
     $r = rv_post($q, $L, $only);
     json_out(['ok' => $r['ok'], 'log' => $r['log'], 'done' => $r['done'] ?? false, 'error' => $r['ok'] ? null : ('Step failed: ' . end($r['log'])['error'])] + record_payload($id, $cycle));
+}
+// ---- the FileMaker renewal record (fmp_renewals) for the property, edited from Main
+case 'fmp_save': {
+    $id = trim((string)($in['lease_id'] ?? ''));
+    $cycle = cyc($in);
+    $L = lease_one($id);
+    if (!$L) { json_out(['ok' => false, 'error' => 'Unknown lease.']); }
+    $r = fmp_renewal_save((string)$L['pcode'], (array)($in['fields'] ?? []));
+    if (!$r['ok']) { json_out($r); }
+    log_event(null, 'fmp_save', ['lease_id' => $id, 'detail' => ['pcode' => $L['pcode'], 'fields' => array_keys((array)($in['fields'] ?? []))]]);
+    json_out(['ok' => true, 'changed' => $r['changed']] + record_payload($id, $cycle, false));
 }
 case 'rv_verify': {
     $id = trim((string)($in['lease_id'] ?? ''));

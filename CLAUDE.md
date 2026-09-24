@@ -219,3 +219,12 @@ the Hub's login builds, logs `fm_link_login`. Main honours `?lease=&cycle=` once
 **Sep 24 (Larry): Main gets the set as a three-row table at the top** (`.setstrip`, `#settbl`, fed from the same
 `S.filtered` the `<` `>` arrows walk; open row highlighted + scrolled into view) and **runs at 115 % on its own**
 (`main_scale` setting, CSS `html.main-window[data-display="off"] { zoom }`; display mode 135 % still wins when on).
+
+**Sep 24: FileMaker tables ARE on oishi-db** (`fmp_collections deposit_refund inventory inventory_items key_slots keys
+marketing owners properties renewals tenant_contacts vacancy`, keyed by `property_code`, company/office ids,
+`imported_at`; loaded outside this portfolio). `lib/fmp.php` reads/writes `fmp_renewals` by pcode (columns read live,
+card hides when the table is absent); Main shows "FileMaker renewal record" in the right pane (inspection, grades,
+rec rent, lease yrs, ASD, X box, IA / OA date-dropdown-story, remarks) and saves it with `fmp_save` (inserts the
+row when FileMaker never had one). **Open:** which fmp_ columns hold Renewal Special / VAOAO / RENEWALS.PERM
+history / ad copy (probably `fmp_properties` / `fmp_marketing`) and whether the fmp_ import re-runs (would
+overwrite Main's edits).
