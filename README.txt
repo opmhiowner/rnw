@@ -76,9 +76,12 @@ THE SET (FileMaker 1.PREP) - v0.2
   to Rentvine in M+1, rent changes on the 1st of M+2.
 
   THE PULL RULE, every month, for increase date D:
-    FIXED   lease end between the 1st of the month before D and D
-            itself, inclusive (for 12/01: lease ends 11/01..12/01).
-            A fixed lease longer than a year waits for its own end.
+    FIXED   lease end (= the sign-up anniversary for a first-year
+            lease) from the 2nd of the month before D through D
+            itself (for 12/01: lease ends 11/02..12/01 - the first
+            "1st of a month" on or after the anniversary). A lease
+            ending on 11/01 is November's, not December's. A fixed
+            lease longer than a year waits for its own end date.
     MTM     end date 9/9/2049 (or isMonthToMonth) and the last
             increase 24 months before D - but less than 25, so each
             lease is pulled in exactly one cycle. No increase on

@@ -180,7 +180,7 @@ drive), LV report-only offices have no Rentvine write-back (the plan says so ins
 ## v0.2 — the set is per increase month (Sep 23–24, 2026, from FileMaker 1.PREP)
 Larry's prep-screen screenshot changed the model. **Cycle = increase month.** Run in month M for the
 1st of M+2; letters by the 11th of M (45-day notice); upload in M+1. **Pull rule:** FIXED = lease end in
-[1st of M+1, 1st of M+2]; MTM (end 2049) = last increase 24 ≤ months < 25 before the increase date
+[2nd of M+1, 1st of M+2] (sign-up anniversary → the next 1st; Larry Sep 24); MTM (end 2049) = last increase 24 ≤ months < 25 before the increase date
 (anchor: own posted history › Last Renewal Date › eligibility−1y › move-in); ADDON by hand; overdue MTM
 (≥ 25 mo) is a report, not the set. New rent starts blank (unfilled). ASD = new deposit − deposit.
 Per-property notes (`renewal_property`: special, VAOAO, colour) persist across cycles. New window

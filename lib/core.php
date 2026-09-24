@@ -545,7 +545,10 @@ function cycle_valid(string $c): bool { return (bool)preg_match('/^\d{4}-(0[1-9]
 function cycle_info(string $cycle): array {
     $inc = $cycle . '-01';
     $run = date('Y-m-01', strtotime($inc . ' -' . (int)knob('cycle_offset') . ' months'));
-    $winStart = date('Y-m-01', strtotime($inc . ' -1 month'));
+    // FIXED window: anniversaries from the 2nd of the month before through the 1st of the
+    // increase month (signed up 11/02..12/01 -> increase 12/01). A lease ending on the 1st
+    // belongs to THAT month's set, never the next.
+    $winStart = date('Y-m-02', strtotime($inc . ' -1 month'));
     return [
         'cycle' => $cycle, 'increase' => $inc, 'label' => date('F Y', strtotime($inc)),
         'run_month' => substr($run, 0, 7),
