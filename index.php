@@ -545,7 +545,7 @@ $me = require_login();
       <div class="label">Office rules</div>
       <div class="kv">${f('display_mode', 'Display mode default (1 = on)')}${f('display_scale', 'Display scale')}${f('cycle_offset', 'Run month + N = increase month')}${f('letters_day', 'Letters out by day of run month')}
         ${f('mtm_months', 'MTM: months since last increase (from)')}${f('mtm_months_max', 'MTM: months since last increase (to, exclusive)')}${f('first_year_months', 'NEW LEASE = lease end within N months of move-in')}
-        ${f('steps', 'Step buttons (%)')}${f('rent_step_dollars', '< > arrows ($)')}${f('deposit_rule', 'Deposit rule (match_rent | keep)')}
+        ${f('steps', 'Step buttons (%)')}${f('deposit_rule', 'Deposit rule (match_rent | keep)')}
         ${f('cl_site', 'Craigslist site')}${f('cl_area', 'Craigslist area (oah, blank = all)')}${f('cl_miles', 'Craigslist miles')}</div>
       <div class="label">Rentvine (write-back)</div>
       <div class="strip ${j.rv_source === 'none' ? 'err' : ''}">Credentials in use: ${j.rv_source === 'synccenter' ? 'Sync Center source for this office' : (j.rv_source === 'settings' ? 'this app\'s key' : 'none')} · base ${fmt.esc(j.rv_base_effective || '—')} · key ${fmt.esc(j.rv_key_tail || '—')}</div>
