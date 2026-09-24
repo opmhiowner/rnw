@@ -23,7 +23,7 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 5;
+const RNW_REV = 6;
 function rnw_version(): string {
     $r = RNW_REV;
     if ($r < 100) { return '.' . $r; }
@@ -381,6 +381,9 @@ function schema_apply(): void {
     $addcols['renewal_decisions']['rv_day_due'] = "ALTER TABLE renewal_decisions ADD COLUMN rv_day_due SMALLINT NULL AFTER rv_old_charge_id";
     $addcols['renewal_decisions']['addon']      = "ALTER TABLE renewal_decisions ADD COLUMN addon TINYINT(1) NOT NULL DEFAULT 0 AFTER special";
     $addcols['renewal_decisions']['remarks']    = "ALTER TABLE renewal_decisions ADD COLUMN remarks VARCHAR(255) NULL AFTER notes";
+    $addcols['renewal_decisions']['rv_verified_at'] = "ALTER TABLE renewal_decisions ADD COLUMN rv_verified_at DATETIME NULL";
+    $addcols['renewal_decisions']['rv_verify_ok']   = "ALTER TABLE renewal_decisions ADD COLUMN rv_verify_ok TINYINT(1) NULL";
+    $addcols['renewal_decisions']['rv_verify_note'] = "ALTER TABLE renewal_decisions ADD COLUMN rv_verify_note VARCHAR(500) NULL";
     foreach ($addcols as $table => $cols) {
         $have = [];
         foreach ($pdo->query("SHOW COLUMNS FROM `$table`") as $r) { $have[$r['Field']] = true; }

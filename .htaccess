@@ -6,10 +6,11 @@ Options -Indexes
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteRule ^(lib|\.git|design|reference|launcher)(/|$) - [F,L]
-  # pretty routes the launcher uses: /rnw/media  /rnw/comps
+  # pretty routes: /rnw/media  /rnw/comps  /rnw/prep  /rnw/post
   RewriteRule ^media/?$ media.php [L]
   RewriteRule ^comps/?$ comps.php [L]
   RewriteRule ^prep/?$ prep.php [L]
+  RewriteRule ^post/?$ post.php [L]
 </IfModule>
 
 <FilesMatch "^(\.gitignore|\.htaccess|CLAUDE\.md|README.*)$">

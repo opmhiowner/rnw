@@ -175,7 +175,15 @@ function set_row(array $r, array $PM, string $cycle = ''): array {
             'status' => $q ? $q['status'] : null, 'addon' => !empty($r['addon']), 'revisit' => $q ? (bool)$q['revisit'] : false,
             'remarks' => $q ? $q['remarks'] : null, 'special' => $P['special'] ?? null, 'vaoao' => $P['vaoao'] ?? null, 'color' => $P['color'] ?? null,
             'deposit_mismatch' => ($cur !== null && $dep !== null && abs($cur - $dep) > 0.5),
-            'unfilled' => $newRent === null];
+            'unfilled' => $newRent === null,
+            // Post screen: step progress, verification, readiness
+            'rv' => $q ? ['find' => !empty($q['rv_old_charge_id']), 'expire' => !empty($q['rv_old_charge_expired_at']), 'create' => !empty($q['rv_new_charge_id']),
+                          'sdr' => (float)($q['sdr_delta'] ?? 0) <= 0 || !empty($q['rv_sdr_charge_id']), 'custom' => !empty($q['rv_custom_field_at'])] : null,
+            'partial' => $q && $q['status'] !== 'posted' && (!empty($q['rv_old_charge_id']) || !empty($q['rv_old_charge_expired_at']) || !empty($q['rv_new_charge_id'])),
+            'posted_at' => $q ? ($q['posted_at'] ?? null) : null, 'posted_by' => $q ? ($q['posted_by'] ?? null) : null,
+            'verified_at' => $q ? ($q['rv_verified_at'] ?? null) : null, 'verify_ok' => $q && isset($q['rv_verify_ok']) && $q['rv_verify_ok'] !== null ? (int)$q['rv_verify_ok'] : null,
+            'verify_note' => $q ? ($q['rv_verify_note'] ?? null) : null,
+            'ready' => $newRent !== null && $q && !in_array($q['status'], ['pau', 'posted'], true)];
 }
 
 function set_totals(array $rows): array {
@@ -460,6 +468,20 @@ case 'rv_post': {
     $only = isset($in['only']) ? (string)$in['only'] : null;
     $r = rv_post($q, $L, $only);
     json_out(['ok' => $r['ok'], 'log' => $r['log'], 'done' => $r['done'] ?? false, 'error' => $r['ok'] ? null : ('Step failed: ' . end($r['log'])['error'])] + record_payload($id, $cycle));
+}
+case 'rv_verify': {
+    $id = trim((string)($in['lease_id'] ?? ''));
+    $cycle = cyc($in);
+    $L = lease_one($id);
+    if (!$L) { json_out(['ok' => false, 'error' => 'Unknown lease.']); }
+    $q = q_row($id, $cycle);
+    if (!$q) { json_out(['ok' => false, 'error' => 'No decision row for this lease in ' . $cycle . '.']); }
+    json_out(rv_verify($q, $L));
+}
+case 'rv_status': {
+    $c = rv_creds();
+    json_out(['ok' => true, 'creds' => ['source' => $c['source'], 'base' => $c['base'], 'key_tail' => $c['key'] !== '' ? '…' . substr($c['key'], -4) : '', 'have' => $c['key'] !== '' && $c['base'] !== ''],
+              'deposit_account' => rv_tpl('rv_deposit_account_id') !== '', 'rent_account' => rv_tpl('rv_rent_account_id') !== '', 'custom_field' => rv_tpl('rv_custom_field_id') !== '']);
 }
 case 'rv_test': {
     $id = trim((string)($in['lease_id'] ?? ''));

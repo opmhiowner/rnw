@@ -106,6 +106,20 @@ THE SET (FileMaker 1.PREP) - v0.2
   filters ALL / MTM / FIXED / ADDON / Unfilled / Exceptions / Pau /
   Posted, sortable columns, totals (count, filled, total increase,
   total ASD), Print list. Click a row and Main jumps to it.
+  The Post window (/rnw/post, Prep > "Post / Upload...") is the upload
+  month's screen, separate from the pull: it lists the rows of the
+  cycle that are filled out and not yet posted (Ready), the ones
+  posted, partially posted (a step failed) and excluded (no new rent,
+  pau). Tick rows, "Verify selected in Rentvine" reads the lease's
+  recurring charges live and checks: one open rent charge, equal to
+  the current rent the decision used, the increase not already there.
+  "Upload selected" runs the four steps per row and verifies again:
+  old charge ends the day before, new charge = new rent from the
+  increase date and open-ended, exactly one rent charge active that
+  day, deposit charge and Last Renewal Date recorded. The Verified
+  column shows tick / cross with the reason; a row can be posted or
+  verified on its own from the right pane. "Make permanent" lives
+  here, after the upload.
 
   TWO SEPARATE THINGS (Larry, Sep 24): WHO IS PULLED and WHAT WAS
   DECIDED never touch each other.
@@ -180,14 +194,12 @@ THE RECORD (Main, center pane)
   Actions (right pane)
     Prep / Print    opens the Prep screen (/rnw/prep) on this increase
                     month: pull the set, filter, add by hand, print the
-                    list, upload, finalize. Letter printing itself
+                    list; from there "Post / Upload..." opens the Post
+                    screen (/rnw/post). Letter printing itself
                     (2 copies, 2 trays) is still parked - see CLAUDE.md.
-    Save            writes the decision (also Enter)
-    Pau renewal     decided; leaves the queue (shows as -3 ADDON this
-                    month). Reopen from the same button.
-    KPI             this month's counts, average %, rent added, SDR
-    Next            next row in the filtered queue
-    Post to Rentvine  see below
+    Post to Rentvine  this one record - see below
+    Enter saves the record; < > in the Rent decision card (or the
+    arrow keys) move to the previous / next renewal in the set.
 
 
 POST TO RENTVINE  (bills are NEVER created)

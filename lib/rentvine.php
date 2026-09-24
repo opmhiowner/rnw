@@ -377,3 +377,62 @@ function rv_test(string $leaseId): array {
     $out['accounts'] = $accts;
     return $out;
 }
+
+// ---------- verify (read-only): what the lease carries in Rentvine right now
+// against what this decision intends (not posted yet) or what it posted.
+// One GET of the lease's recurring charges; the deposit ledger charge and the
+// custom field are reported from this app's own record (no read endpoint).
+function rv_verify(array $q, array $L): array {
+    $c = rv_creds();
+    if ($c['key'] === '' || $c['base'] === '') { return ['ok' => false, 'error' => 'No Rentvine credentials for this office (Settings › Rentvine).']; }
+    $r = rv_call('GET', rv_fill(rv_tpl('rv_charges_list_url'), ['base' => $c['base'], 'lease_id' => $q['lease_id']]), null, 20);
+    if (!$r['ok']) { return ['ok' => false, 'error' => 'Rentvine: ' . ($r['error'] ?: 'HTTP ' . $r['code'])]; }
+    $rows = rv_charge_rows($r['json']);
+    $needle = strtolower(rv_tpl('rv_rent_match'));
+    $rent = array_values(array_filter($rows, fn($x) => $x['is_rent'] === true
+        || ($x['is_rent'] === null && $needle !== '' && str_contains(strtolower($x['desc'] . ' ' . $x['account_name']), $needle))));
+    $start = $q['increase_date'] ?: cycle_info($q['cycle'])['increase'];
+    $endOld = date('Y-m-d', strtotime($start . ' -1 day'));
+    $money = fn($v) => $v === null ? '?' : '$' . number_format((float)$v, 2);
+    $desc = fn(array $x) => 'charge ' . $x['id'] . ' ' . $money($x['amount']) . ' ' . $x['desc'] . ' from ' . ($x['start'] ?: '?') . ($x['end'] ? ' to ' . $x['end'] : ', open-ended');
+    $byId = function (?string $id) use ($rows) { foreach ($rows as $x) { if ($id !== null && $id !== '' && $x['id'] === $id) { return $x; } } return null; };
+    $newRent = $q['new_rent'] !== null ? (float)$q['new_rent'] : null;
+    $sdr = (float)($q['sdr_delta'] ?? 0);
+    $posted = $q['status'] === 'posted' || !empty($q['rv_new_charge_id']) || !empty($q['rv_old_charge_expired_at']);
+    $checks = [];
+    if (!$posted) {
+        $checks[] = ['label' => 'New rent filled in', 'ok' => $newRent !== null, 'detail' => $newRent !== null ? $money($newRent) . ' from ' . $start : 'nothing to post'];
+        $open = rv_pick_rent_charge($r['json']);
+        $checks[] = ['label' => 'Rentvine has one open rent charge', 'ok' => $open !== null, 'detail' => $open ? $desc($open) . ', due day ' . ($open['day_due'] ?? '?') : 'no open rent charge found - Settings › Rentvine "rent match"?'];
+        $cur = $q['current_rent'] !== null ? (float)$q['current_rent'] : $L['rent'];
+        if ($open && $cur !== null) {
+            $checks[] = ['label' => 'That charge equals the current rent the decision used', 'ok' => abs((float)$open['amount'] - (float)$cur) < 0.5,
+                         'detail' => $money($open['amount']) . ' in Rentvine vs ' . $money($cur) . ' on the decision'];
+        }
+        $dup = null;
+        foreach ($rent as $x) { if ($x['start'] === $start && $newRent !== null && abs((float)$x['amount'] - $newRent) < 0.5) { $dup = $x; } }
+        $checks[] = ['label' => 'Increase not already in Rentvine', 'ok' => $dup === null, 'detail' => $dup ? $desc($dup) . ' already exists - posting would duplicate it' : 'no charge of ' . $money($newRent) . ' starting ' . $start];
+    } else {
+        $old = $byId($q['rv_old_charge_id'] ?? null);
+        $checks[] = ['label' => 'Old rent charge ends ' . $endOld, 'ok' => $old !== null && $old['end'] === $endOld,
+                     'detail' => $old ? $desc($old) : 'charge ' . ($q['rv_old_charge_id'] ?: '?') . ' not found on the lease'];
+        $new = $byId($q['rv_new_charge_id'] ?? null);
+        if (!$new) { foreach ($rent as $x) { if ($x['start'] === $start && $newRent !== null && abs((float)$x['amount'] - $newRent) < 0.5) { $new = $x; } } }
+        $checks[] = ['label' => 'New rent charge ' . $money($newRent) . ' from ' . $start . ', open-ended',
+                     'ok' => $new !== null && $newRent !== null && abs((float)$new['amount'] - $newRent) < 0.5 && $new['start'] === $start && $new['end'] === null,
+                     'detail' => $new ? $desc($new) : 'not found on the lease'];
+        $active = array_values(array_filter($rent, fn($x) => ($x['start'] === null || $x['start'] <= $start) && ($x['end'] === null || $x['end'] >= $start)));
+        $checks[] = ['label' => 'Exactly one rent charge active on ' . $start, 'ok' => count($active) === 1,
+                     'detail' => count($active) . ' active' . ($active ? ': ' . implode(' | ', array_map($desc, $active)) : '')];
+        $checks[] = ['label' => $sdr > 0 ? 'Deposit increase ' . $money($sdr) . ' charged to the ledger' : 'No deposit increase', 'ok' => $sdr <= 0 || !empty($q['rv_sdr_charge_id']),
+                     'detail' => $sdr > 0 ? ('ledger charge ' . ($q['rv_sdr_charge_id'] ?: 'NOT posted') . ' (this app\'s record; the ledger is not re-read)') : '-'];
+        $checks[] = ['label' => rv_tpl('rv_custom_field_name') . ' = ' . $start, 'ok' => !empty($q['rv_custom_field_at']),
+                     'detail' => !empty($q['rv_custom_field_at']) ? 'set ' . $q['rv_custom_field_at'] . ' (this app\'s record)' : 'NOT set'];
+    }
+    $bad = array_values(array_filter($checks, fn($k) => !$k['ok']));
+    $ok = count($bad) === 0;
+    $note = $ok ? ($posted ? 'posted and verified' : 'ready') : implode('; ', array_map(fn($k) => $k['label'], $bad));
+    db()->prepare("UPDATE renewal_decisions SET rv_verified_at = NOW(), rv_verify_ok = ?, rv_verify_note = ? WHERE id = ?")->execute([$ok ? 1 : 0, mb_substr($note, 0, 500), $q['id']]);
+    log_event((int)$q['id'], 'rv_verify', ['lease_id' => $q['lease_id'], 'detail' => ['ok' => $ok, 'note' => $note, 'posted' => $posted]]);
+    return ['ok' => true, 'verified' => $ok, 'posted' => $posted, 'note' => $note, 'checks' => $checks, 'start' => $start, 'charges' => $rows, 'at' => date('Y-m-d H:i:s')];
+}

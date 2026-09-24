@@ -47,6 +47,7 @@ $me = require_login();
     <span class="tag lg pau hide" id="c-final">FINALIZED</span>
     <div class="grow"></div>
     <div class="row" style="gap:4px" id="offices"></div>
+    <a href="post.php" target="rc-post" style="font-size:12px;font-weight:600">Post</a>
     <a href="index.php" target="rc-main" style="font-size:12px;font-weight:600">Main window</a>
   </div>
   <div class="shell" style="flex:1;min-height:0">
@@ -85,8 +86,7 @@ $me = require_login();
       </div>
       <div class="actions" style="border-top:1px solid var(--hair);margin:0 -14px -14px;padding:12px 14px">
         <button class="btn md" id="btn-letters">Letters sent</button>
-        <button class="btn md pri" id="btn-post">Upload this set to Rentvine…</button>
-        <button class="btn md" id="btn-final">Make permanent (finalize)</button>
+        <button class="btn md pri" id="btn-post" title="Open the Post screen: the filled rows ready for upload, verify against Rentvine, upload, make permanent">Post / Upload…</button>
       </div>
     </div>
   </div>
@@ -123,7 +123,6 @@ $me = require_login();
     $('c-label').textContent = 'Increase ' + fmt.date(j.cycle.increase);
     $('c-info').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters out by ${fmt.date(j.cycle.letters_by)} · upload in ${j.cycle.upload_month} · fixed ends ${fmt.dateShort(j.cycle.fixed_from)}–${fmt.dateShort(j.cycle.fixed_to)}` + (j.cycle.row.letters_at ? ' · letters sent ' + fmt.date(j.cycle.row.letters_at) : '');
     $('c-final').classList.toggle('hide', !j.cycle.finalized);
-    $('btn-final').textContent = j.cycle.finalized ? 'Reopen cycle' : 'Make permanent (finalize)';
     $('offices').innerHTML = (j.offices.length ? j.offices : [{ code: j.office.code, label: j.office.label }]).map(o => `<button class="btn sm ${o.code === j.office.code ? 'on' : ''}" data-office="${fmt.esc(o.code)}">${fmt.esc(o.code)}</button>`).join('');
     $('offices').querySelectorAll('button').forEach(b => b.onclick = async () => { await api('board', { office: b.dataset.office }); load(); });
     $('filters').innerHTML = FILTERS.map(([k, l]) => `<button class="btn xs ${S.filter === k ? 'on' : ''}" data-f="${k}">${l}${k === 'unpulled' && S.unpulled.length ? ' · ' + S.unpulled.length : ''}</button>`).join('');
@@ -211,27 +210,8 @@ $me = require_login();
   function closeModal() { $('modal').classList.add('hide'); }
   $('modal').addEventListener('click', (e) => { if (e.target === $('modal')) closeModal(); });
   $('btn-letters').onclick = async () => { if (!confirm('Mark letters for ' + fmt.cycle(S.cycle) + ' as sent today?')) return; const j = await api('cycle_letters', { cycle: S.cycle }); if (j.ok) { toast('Letters stamped'); load(); } else toast(j.error, true); };
-  $('btn-post').onclick = async () => {
-    const t = S.board.totals; const n = S.rows.filter(r => !r.unfilled && r.status !== 'posted').length;
-    openModal(`<h2>Upload ${fmt.cycle(S.cycle)} to Rentvine</h2>
-      <div>${n} filled rows not yet posted will be sent, each in the four steps (end old rent charge, new rent charge from ${fmt.date(S.board.cycle.increase)}, deposit charge, Last Renewal Date). ${t.count - t.filled} unfilled rows are skipped. Finished steps are never repeated.</div>
-      <div class="strip warn">Do this in ${S.board.cycle.upload_month}, after the letters are out. Preview any single row's calls from Main › "Preview the 4 steps".</div>
-      <div id="post-log"></div>
-      <div class="row" style="justify-content:flex-end"><button class="btn" id="m-close">Cancel</button><button class="btn pri" id="m-go" ${n ? '' : 'disabled'}>Upload ${n} now</button></div>`);
-    $('m-close').onclick = closeModal;
-    $('m-go').onclick = async () => {
-      if (!confirm('Upload ' + n + ' renewals to Rentvine now?')) return;
-      $('m-go').disabled = true; $('post-log').innerHTML = '<div class="muted">Posting… this takes a few seconds per lease.</div>';
-      const j = await api('cycle_post', { cycle: S.cycle, confirm: 1 });
-      $('post-log').innerHTML = `<div class="strip ${j.failed ? 'err' : ''}">${j.done} posted · ${j.failed} failed · ${j.skipped} skipped</div>` + (j.log || []).map(l => `<div style="font-size:12px" class="${l.ok ? '' : 'neg'}">${l.ok ? '✓' : '✗'} <strong>${fmt.esc(l.pcode)}</strong> ${fmt.esc(l.tenant)}: ${l.steps.map(fmt.esc).join(', ')}</div>`).join('');
-      $('m-close').textContent = 'Close'; load();
-    };
-  };
-  $('btn-final').onclick = async () => {
-    if (S.board.cycle.finalized) { const j = await api('cycle_unfinalize', { cycle: S.cycle }); if (j.ok) { toast('Cycle reopened'); load(); } return; }
-    if (!confirm('Make ' + fmt.cycle(S.cycle) + ' permanent? Rows become read-only (FileMaker "make permanent record").')) return;
-    const j = await api('cycle_finalize', { cycle: S.cycle, confirm: 1 }); if (j.ok) { toast('Finalized'); load(); } else toast(j.error, true);
-  };
+  // Post / Upload lives on its own screen (/rnw/post): verify, upload, make permanent
+  $('btn-post').onclick = () => window.open('post.php?cycle=' + encodeURIComponent(S.cycle), 'rc-post');
   document.addEventListener('keydown', (e) => {
     if (!$('modal').classList.contains('hide')) { if (e.key === 'Escape') closeModal(); return; }
     const tag = (e.target.tagName || '').toLowerCase(); if (tag === 'input' || tag === 'textarea') return;

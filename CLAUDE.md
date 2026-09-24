@@ -198,3 +198,14 @@ adds a lease; a decision for a lease not in the set shows under Prep › "Not pu
 hand-added rows can be removed (decision kept). Main shows "not in this set" + "Add to this set" on such a
 record. The fixed window starts on the 2nd (anniversary → next 1st); "this run" jumps to the next increase
 month once the current month's letters deadline (the 11th) has passed.
+
+**Sep 24 (Larry): Main's action strip is Prep / Print only; `<` `>` in the Rent decision card are previous / next
+renewal (Save / Pau / KPI / Next buttons removed, Enter still saves). Posting is its own screen** `/rnw/post`
+(`post.php`, opened from Prep › "Post / Upload…"): the cycle's filled, not-yet-posted rows (Ready / Posted /
+Partial / Verify failed / Excluded), tick rows → "Verify selected" (`rv_verify`: one GET of the lease's recurring
+charges, checks stored on the decision row as `rv_verified_at/rv_verify_ok/rv_verify_note`) → "Upload selected"
+(`cycle_post` with `only`) → auto re-verify → "Make permanent" (moved here from Prep). Before posting the checks
+are: new rent filled, one open rent charge, equal to the decision's current rent, increase not already in
+Rentvine. After: old charge ends the day before, new charge = new rent from the increase date open-ended, exactly
+one rent charge active that day, deposit charge + Last Renewal Date recorded (from this app's record; no read
+endpoint). `rv_status` reports the credentials and whether the deposit GL account id is set.
