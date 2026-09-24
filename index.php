@@ -91,8 +91,8 @@ $me = require_login();
               <span class="muted" style="width:36px">Step</span>
               <span class="row" id="steps"></span>
               <div class="grow"></div>
-              <button class="btn arrow" id="dec" aria-label="Lower new rent">&lt;</button>
-              <button class="btn arrow pri" id="inc" aria-label="Raise new rent">&gt;</button>
+              <button class="btn arrow" id="dec" aria-label="Previous renewal" title="Previous renewal (←)">&lt;</button>
+              <button class="btn arrow pri" id="inc" aria-label="Next renewal" title="Next renewal (→)">&gt;</button>
             </div>
             <div class="grid4 dep-row">
               <div class="fld"><span>Rent starts</span><input class="in sm" id="f-increase-date" type="date"></div>
@@ -197,10 +197,9 @@ $me = require_login();
         <button class="btn lg warn" id="btn-prep" title="Open the Prep screen: pull the set for this increase month, add by hand, print the list, upload">Prep / Print</button>
         <button class="btn lg pri" id="btn-save" title="Enter">Save</button>
       </div>
-      <div class="grid3" style="gap:8px">
+      <div class="grid2" style="gap:8px">
         <button class="btn md" id="btn-pau">Pau renewal</button>
         <button class="btn md" id="btn-kpi">KPI</button>
-        <button class="btn md" id="btn-next" title="→">Next →</button>
       </div>
       <button class="btn lg" id="btn-post" style="border-color:var(--teal);color:var(--teal)">Post to Rentvine…</button>
     </div>
@@ -267,7 +266,7 @@ $me = require_login();
     }).join('') || '<div class="muted" style="padding:24px 16px;text-align:center">Nothing in the queue for this filter.</div>';
     $('queue').querySelectorAll('.qrow').forEach(b => b.onclick = () => pick(b.dataset.id));
     const i = S.filtered.findIndex(r => r.lease_id === S.sel);
-    $('pos').textContent = S.filtered.length ? ((i >= 0 ? (i + 1) + ' of ' : '') + S.filtered.length + ' in the set · Next / ← →') : 'set is empty · open the Prep screen';
+    $('pos').textContent = S.filtered.length ? ((i >= 0 ? (i + 1) + ' of ' : '') + S.filtered.length + ' in the set · < > or ← →') : 'set is empty · open the Prep screen';
   }
   $('search').addEventListener('input', () => { S.q = $('search').value; renderQueue(); });
 
@@ -367,9 +366,9 @@ $me = require_login();
     if (dirty) { markDirty(); if (S.rec) { S.rec.q.new_rent = nr; S.rec.q.pct_inc = pct; publish(); } }
   }
   function markDirty() { S.dirty = true; $('btn-save').textContent = 'Save •'; }
-  $('inc').onclick = () => { $('f-new-rent').value = Math.round(Number($('f-new-rent').value || S.rec.q.current_rent || 0) + S.rec.step_dollars); recalc(true); };
-  ['f-prop-special', 'f-prop-vaoao', 'f-prop-color', 'f-remarks'].forEach(id => $(id).addEventListener('change', markDirty));
-  $('dec').onclick = () => { $('f-new-rent').value = Math.max(0, Math.round(Number($('f-new-rent').value || 0) - S.rec.step_dollars)); recalc(true); };
+  // < > = previous / next renewal in the set (same as ← →)
+  $('inc').onclick = () => next(1);
+  $('dec').onclick = () => next(-1);
   ['f-new-rent', 'f-cur-dep', 'f-range-top', 'f-range-bottom'].forEach(id => $(id).addEventListener('input', () => recalc(true)));
   $('f-new-dep').addEventListener('input', () => { $('f-new-dep').dataset.auto = 'off'; recalc(true); });
   ['f-increase-date', 'f-eval-top', 'f-eval-recom', 'f-eval-bottom', 'f-notes', 'f-revisit', 'f-special', 'f-oa', 'f-no-increase', 'f-cat-override']
@@ -410,7 +409,6 @@ $me = require_login();
     if (S.dirty) { await save(true); }
     window.open('prep.php?cycle=' + encodeURIComponent(S.cycle), 'rc-prep');
   };
-  $('btn-next').onclick = () => next(1);
   $('btn-add-set').onclick = async () => {
     const j = await api('cycle_add', { lease_id: S.sel, cycle: S.cycle });
     if (!j.ok) { toast(j.error, true); return; }
