@@ -178,9 +178,10 @@ THE RECORD (Main, center pane)
                   (unit, bed/bath/parking, rent, last renewal, move in).
 
   Actions (right pane)
-    Prep / Print    PARKED. Stamps the record as prepped so the letter
-                    run can find it. Printing (2 copies, 2 trays) is
-                    written up in CLAUDE.md "Printing".
+    Prep / Print    opens the Prep screen (/rnw/prep) on this increase
+                    month: pull the set, filter, add by hand, print the
+                    list, upload, finalize. Letter printing itself
+                    (2 copies, 2 trays) is still parked - see CLAUDE.md.
     Save            writes the decision (also Enter)
     Pau renewal     decided; leaves the queue (shows as -3 ADDON this
                     month). Reopen from the same button.

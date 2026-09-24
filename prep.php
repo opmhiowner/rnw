@@ -97,7 +97,7 @@ $me = require_login();
 (() => {
   const { api, bus, display, fmt, toast, LS } = RC;
   const $ = (id) => document.getElementById(id);
-  const S = { cycle: LS('renewal.cycle') || '', board: null, rows: [], filter: 'all', cat: 'all', q: '', sel: null, sort: null, dir: 1 };
+  const S = { cycle: new URLSearchParams(location.search).get('cycle') || LS('renewal.cycle') || '', board: null, rows: [], filter: 'all', cat: 'all', q: '', sel: null, sort: null, dir: 1 };
   const FILTERS = [['all', 'All'], ['mtm', 'MTM'], ['fixed', 'Fixed'], ['addon', 'Addon'], ['unfilled', 'Unfilled'], ['exceptions', 'Exceptions'], ['pau', 'Pau'], ['posted', 'Posted'], ['unpulled', 'Not pulled']];
   const COLS = [
     ['increase_date', 'Date', v => fmt.dateShort(v)], ['revisit', 'Rev', v => v ? '✕' : ''], ['pcode', 'Pcode', v => fmt.esc(v)],

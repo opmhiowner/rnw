@@ -30,7 +30,7 @@ $me = require_login();
         <strong id="c-label" style="font-size:13px">—</strong>
         <button class="btn xs" id="c-next" aria-label="Next cycle">&gt;</button>
         <div class="grow"></div>
-        <a href="prep.php" target="rc-prep" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep window</a>
+        <a href="prep.php" target="rc-prep" id="lnk-prep" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep window</a>
       </div>
       <div class="muted" style="font-size:11px" id="c-info"></div>
       <input type="search" id="search" class="in" placeholder="Search tenant, property, ID…" aria-label="Search renewals">
@@ -181,7 +181,7 @@ $me = require_login();
     </div>
     <div class="actions">
       <div class="grid2" style="gap:8px">
-        <button class="btn lg warn" id="btn-prep" title="Printing is parked: this stamps the record for the letter run">Prep / Print</button>
+        <button class="btn lg warn" id="btn-prep" title="Open the Prep screen: pull the set for this increase month, add by hand, print the list, upload">Prep / Print</button>
         <button class="btn lg pri" id="btn-save" title="Enter">Save</button>
       </div>
       <div class="grid3" style="gap:8px">
@@ -210,6 +210,7 @@ $me = require_login();
     if (!j.ok) { toast(j.error, true); return; }
     S.board = j; S.queue = j.queue; S.cycle = j.cycle.cycle; LS('renewal.cycle', S.cycle);
     $('c-label').textContent = 'Increase ' + fmt.date(j.cycle.increase) + (j.cycle.finalized ? ' · FINAL' : '');
+    $('lnk-prep').href = 'prep.php?cycle=' + encodeURIComponent(S.cycle);
     $('c-info').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters by ${fmt.dateShort(j.cycle.letters_by)} · ${j.totals.filled}/${j.totals.count} filled · +${fmt.money(j.totals.increase)}/mo`;
     $('c-prev').onclick = () => { S.cycle = j.cycle.prev; S.sel = null; loadBoard(); }; $('c-next').onclick = () => { S.cycle = j.cycle.next; S.sel = null; loadBoard(); };
     display.apply(j.display.on, j.display.scale);
@@ -315,7 +316,7 @@ $me = require_login();
     $('btn-post').disabled = q.status === 'posted';
     $('rv-state').textContent = q.status === 'posted' ? 'Posted ' + fmt.date(q.posted_at) + ' by ' + q.posted_by
       : (q.rv_new_charge_id ? 'Partly posted - open the preview to finish.' : 'Not posted. Rent starts ' + fmt.date(q.increase_date) + '.');
-    $('btn-prep').textContent = q.printed_at ? 'Prepped ' + fmt.dateShort(q.printed_at) : 'Prep / Print';
+    $('btn-prep').textContent = 'Prep / Print';
     renderSteps(); recalc(false);
   }
 
@@ -384,11 +385,10 @@ $me = require_login();
     toast(S.rec.q.status === 'open' ? 'Pau · out of the queue' : 'Reopened');
     S.rec = j; renderRecord(); await loadBoard();
   };
+  // Prep / Print = the FileMaker 1.PREP screen: the set for this increase month
   $('btn-prep').onclick = async () => {
-    if (S.dirty) { if (!(await save(true))) return; }
-    const j = await api('prepped', { lease_id: S.sel, cycle: S.cycle });
-    if (!j.ok) { toast(j.error, true); return; }
-    S.rec = j; renderRecord(); toast('Stamped as prepped. Printing itself is parked (see README).');
+    if (S.dirty) { await save(true); }
+    window.open('prep.php?cycle=' + encodeURIComponent(S.cycle), 'rc-prep');
   };
   $('btn-next').onclick = () => next(1);
   $('btn-add-set').onclick = async () => {
