@@ -54,7 +54,7 @@ $me = require_login();
         <button class="btn xs" id="c-next2" aria-label="Next cycle">&gt;</button>
         <span class="muted" style="font-size:11px" id="c-info2"></span>
         <div class="grow"></div>
-        <span class="muted" style="font-size:11px" id="pos"></span>
+        <span class="muted" style="font-size:11px" id="pos"></span> <span style="font-size:11px;color:var(--warn)" id="savestate"></span>
         <a href="prep.php" target="rc-prep" id="lnk-prep2" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep screen</a>
       </div>
       <div class="rec-head">
@@ -193,14 +193,7 @@ $me = require_login();
       </div>
     </div>
     <div class="actions">
-      <div class="grid2" style="gap:8px">
-        <button class="btn lg warn" id="btn-prep" title="Open the Prep screen: pull the set for this increase month, add by hand, print the list, upload">Prep / Print</button>
-        <button class="btn lg pri" id="btn-save" title="Enter">Save</button>
-      </div>
-      <div class="grid2" style="gap:8px">
-        <button class="btn md" id="btn-pau">Pau renewal</button>
-        <button class="btn md" id="btn-kpi">KPI</button>
-      </div>
+      <button class="btn lg warn" id="btn-prep" title="Open the Prep screen: pull the set for this increase month, add by hand, print the list, upload">Prep / Print</button>
       <button class="btn lg" id="btn-post" style="border-color:var(--teal);color:var(--teal)">Post to Rentvine…</button>
     </div>
   </div>
@@ -312,8 +305,8 @@ $me = require_login();
     $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-color').value = P.color || '#ffffff';
     $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle).map(p => `<div class="row between"><span>${fmt.cycle(p.cycle)} <span class="tag ${p.status}">${p.status}</span></span><span class="mono">${fmt.money(p.current_rent)} → ${fmt.money(p.new_rent)} ${p.pct_inc !== null ? '(' + fmt.pct(p.pct_inc) + ')' : ''}</span></div>`).join('') || '<span class="muted">none in this app yet</span>';
     const fin = !!S.rec.finalized;
-    ['btn-save', 'btn-pau', 'btn-prep'].forEach(id => $(id).disabled = fin);
-    if (fin) $('btn-save').textContent = 'Finalized';
+    $('btn-prep').disabled = fin;
+    $('savestate').textContent = fin ? 'finalized · read-only' : '';
     ['revisit', 'special', 'oa', 'no_increase'].forEach(k => $('f-' + k.replace('_', '-')).checked = !!Number(q[k]));
     $('f-cat-override').value = q.category_override === null ? '' : String(q.category_override);
     const A = S.rec.anchor || {}; $('last-renewal').textContent = A.date ? 'Last increase ' + fmt.date(A.date) + ' (' + A.source + ')' : 'No increase date on file';
@@ -330,7 +323,6 @@ $me = require_login();
     $('mo-date').textContent = fmt.date(L.move_out); $('mo-notice').textContent = fmt.date(L.notice);
     $('contact').innerHTML = `${fmt.esc(L.phone || '—')}<br>${fmt.esc(L.email || '')}`;
     $('lnk-sev').href = 'https://apps.oishis.net/sev/?q=' + encodeURIComponent(L.pcode || L.address || '');
-    $('btn-pau').textContent = q.status === 'open' ? 'Pau renewal' : 'Reopen';
     $('btn-post').textContent = q.status === 'posted' ? 'Posted to Rentvine ✓' : 'Post to Rentvine…';
     $('btn-post').disabled = q.status === 'posted';
     $('rv-state').textContent = q.status === 'posted' ? 'Posted ' + fmt.date(q.posted_at) + ' by ' + q.posted_by
@@ -365,7 +357,7 @@ $me = require_login();
     $('steps').querySelectorAll('button').forEach(b => b.classList.toggle('on', pct !== null && Math.abs(Number(b.dataset.step) - pct) < 0.05));
     if (dirty) { markDirty(); if (S.rec) { S.rec.q.new_rent = nr; S.rec.q.pct_inc = pct; publish(); } }
   }
-  function markDirty() { S.dirty = true; $('btn-save').textContent = 'Save •'; }
+  function markDirty() { S.dirty = true; $('savestate').textContent = 'unsaved · Enter saves'; }
   // < > = previous / next renewal in the set (same as ← →)
   $('inc').onclick = () => next(1);
   $('dec').onclick = () => next(-1);
@@ -390,20 +382,12 @@ $me = require_login();
     const j = await api('save', collect());
     S.saving = false;
     if (!j.ok) { toast(j.error, true); return false; }
-    S.rec = j; S.dirty = false; $('btn-save').textContent = 'Save'; $('f-new-dep').dataset.auto = '';
+    S.rec = j; S.dirty = false; $('savestate').textContent = ''; $('f-new-dep').dataset.auto = '';
     renderRecord(); S.justSaved = true; publish(); S.justSaved = false;
     if (!quiet) toast('Saved · ' + fmt.money(j.q.new_rent) + ' (' + fmt.pct(j.q.pct_inc) + ')');
     const row = S.queue.find(r => r.lease_id === S.sel); if (row) { row.new_rent = j.q.new_rent; row.pct = j.q.pct_inc; row.status = j.q.status; row.unfilled = j.q.new_rent === null; renderQueue(); }
     return true;
   }
-  $('btn-save').onclick = () => save(false);
-  $('btn-pau').onclick = async () => {
-    if (S.dirty) { if (!(await save(true))) return; }
-    const j = await api(S.rec.q.status === 'open' ? 'pau' : 'reopen', { lease_id: S.sel, cycle: S.cycle });
-    if (!j.ok) { toast(j.error, true); return; }
-    toast(S.rec.q.status === 'open' ? 'Pau · out of the queue' : 'Reopened');
-    S.rec = j; renderRecord(); await loadBoard();
-  };
   // Prep / Print = the FileMaker 1.PREP screen: the set for this increase month
   $('btn-prep').onclick = async () => {
     if (S.dirty) { await save(true); }
@@ -511,17 +495,6 @@ $me = require_login();
   $('btn-rv-plan').onclick = () => rvPlan(false);
   $('btn-post').onclick = () => rvPlan(true);
 
-  $('btn-kpi').onclick = async () => {
-    const j = await api('kpi', C());
-    if (!j.ok) { toast(j.error, true); return; }
-    const t = j.totals;
-    openModal(`<h2>KPI · increase ${fmt.date(j.cycle.increase)}</h2>
-      <div class="kv"><span>In the set</span><strong>${t.count} (fixed ${t.fixed} · MTM ${t.mtm} · addon ${t.addon})</strong><span>Filled</span><strong>${t.filled} of ${t.count}</strong>
-      <span>Average increase</span><strong>${j.avg_pct === null ? '—' : fmt.pct(j.avg_pct)}</strong><span>Total increase</span><strong class="mono">${fmt.money(t.increase)} / month</strong>
-      <span>Total ASD</span><strong class="mono">${fmt.money(t.asd)}</strong><span>Pau / posted</span><strong>${t.pau} / ${t.posted}</strong><span>Exceptions</span><strong>${t.exceptions}</strong></div>
-      <div>${Object.entries(j.by_cat).map(([k, v]) => fmt.esc(k) + ' ' + v).join(' · ') || '—'}</div>
-      <div class="row" style="justify-content:flex-end"><button class="btn" onclick="document.getElementById('modal').classList.add('hide')">Close</button></div>`);
-  };
   $('btn-events').onclick = async () => {
     const j = await api('events', { lease_id: S.sel });
     openModal(`<h2>Activity · ${fmt.esc(S.rec.lease.property)}</h2><div class="tbl"><div class="tr th" style="grid-template-columns:1.4fr 1fr 1fr 3fr"><span>When</span><span>Event</span><span>Who</span><span>Detail</span></div>
