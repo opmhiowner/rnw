@@ -351,11 +351,11 @@ function schema_ensure(): void {
           KEY idx_company (company_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-    // v0.2: renewal_decisions -> renewal_decisions (keep the rows), addon flags -> renewal_addons
+    // v0.2: renewal_queue -> renewal_decisions (keep the rows), addon flags -> renewal_addons
     $have = [];
     foreach ($pdo->query("SHOW TABLES") as $r) { $have[strtolower((string)reset($r))] = true; }
-    if (isset($have['renewal_decisions']) && !isset($have['renewal_decisions'])) {
-        $pdo->exec("RENAME TABLE renewal_decisions TO renewal_decisions");
+    if (isset($have['renewal_queue']) && !isset($have['renewal_decisions'])) {
+        $pdo->exec("RENAME TABLE renewal_queue TO renewal_decisions");
     }
     foreach ($tables as $sql) { $pdo->exec($sql); }
 
