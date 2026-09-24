@@ -19,11 +19,14 @@ WHERE THE DATA COMES FROM
               Never written to.
   Decisions   this app's own tables on oishi-db, every row stamped
               company_id + office_id:
-                renewal_queue        one row per lease per month: the
+                renewal_decisions    one row per lease per cycle: the
                                      lease snapshot, new rent, % inc,
                                      deposit / SDR increase, ranges,
                                      evaluation, flags, notes, pinned
                                      comps, Rentvine step ids, status
+                renewal_addons       leases added to a cycle by hand
+                renewal_cycles       letters-sent / finalized per cycle
+                renewal_property     Renewal Special, VAOAO, colour per pcode
                 renewal_settings     per-office knobs + Rentvine templates
                 renewal_events       every action, who, what Rentvine said
                 renewal_media        cover photo, order, description per pcode
@@ -104,11 +107,22 @@ THE SET (FileMaker 1.PREP) - v0.2
   Posted, sortable columns, totals (count, filled, total increase,
   total ASD), Print list. Click a row and Main jumps to it.
 
-  SAVED AND RETRIEVABLE: each decision is one row per lease per
-  cycle (renewal_queue.cycle = "2026-12"). October's work on the
-  December set is there in November for the upload and forever
-  after as history; Sync Center refreshing the mirror never touches
-  it. The record shows "Past renewals" from earlier cycles.
+  TWO SEPARATE THINGS (Larry, Sep 24): WHO IS PULLED and WHAT WAS
+  DECIDED never touch each other.
+    - The set = the pull rule + renewal_addons (added by hand). That
+      is all. Nothing else can put a lease in a month's list.
+    - Decisions = renewal_decisions, one row per lease per cycle:
+      new rent, deposit increase, flags, notes, Rentvine step ids.
+      Saving a decision never adds a lease to the set; opening a
+      record that is not in the set only creates its decision row.
+      A saved decision for a lease that is not (or no longer) in the
+      set is kept and shown under Prep > "Not pulled", with an Add
+      button. Removing a hand-added lease keeps its decision there.
+      Rows in the set by the rule cannot be removed (use the flags).
+  SAVED AND RETRIEVABLE: October's work on the December set is there
+  in November for the upload and forever after as history (cycle =
+  "2026-12" on every row); Sync Center refreshing the mirror never
+  touches it. The record shows "Past renewals" from earlier cycles.
 
   CATEGORIES (SORT.CALC, computed, a row can be pinned by hand)
     -3 ADDON        added by hand

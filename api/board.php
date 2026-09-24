@@ -27,7 +27,7 @@ function cyc(array $in): string {
 }
 
 function q_row(string $leaseId, string $cycle): ?array {
-    $st = db()->prepare("SELECT * FROM renewal_queue WHERE office_id = ? AND lease_id = ? AND cycle = ?");
+    $st = db()->prepare("SELECT * FROM renewal_decisions WHERE office_id = ? AND lease_id = ? AND cycle = ?");
     $st->execute([oid(), $leaseId, $cycle]);
     $r = $st->fetch();
     return $r ?: null;
@@ -36,7 +36,7 @@ function q_row(string $leaseId, string $cycle): ?array {
 // the most recent row for a lease in any cycle (history on the record)
 function q_history(string $leaseId, int $limit = 6): array {
     $st = db()->prepare("SELECT cycle, status, current_rent, new_rent, pct_inc, sdr_delta, increase_date, posted_at, pau_at, decided_by
-                         FROM renewal_queue WHERE office_id = ? AND lease_id = ? ORDER BY cycle DESC LIMIT $limit");
+                         FROM renewal_decisions WHERE office_id = ? AND lease_id = ? ORDER BY cycle DESC LIMIT $limit");
     $st->execute([oid(), $leaseId]);
     return $st->fetchAll();
 }
@@ -48,15 +48,16 @@ function new_deposit_for(?float $newRent, ?float $curDeposit): ?float {
     return $curDeposit;
 }
 
-// open (or reuse) the decision row for a lease in a cycle, snapshotting the mirror.
+// open (or reuse) the DECISION row for a lease in a cycle, snapshotting the mirror.
 // New rent starts BLANK (FileMaker "unfilled"); the increase date is the cycle's 1st.
+// This never adds the lease to the set - see cycle_add for that.
 function q_open(array $L, string $cycle, bool $addon = false): array {
     $me = current_user();
     $q = q_row($L['lease_id'], $cycle);
     if ($q) { return $q; }
     $ci = cycle_info($cycle);
     db()->prepare(
-        "INSERT INTO renewal_queue
+        "INSERT INTO renewal_decisions
            (company_id, office_id, lease_id, cycle, status, addon,
             lease_tenant, lease_property, lease_unit, lease_pcode, lease_zip, lease_rent, lease_deposit,
             lease_start, lease_end, lease_mtm,
@@ -67,8 +68,13 @@ function q_open(array $L, string $cycle, bool $addon = false): array {
                    $L['start'], $L['end'], $L['mtm'] ? 1 : 0,
                    $L['rent'], $ci['increase'], $L['deposit'], $me['key'] ?? 'system']);
     $q = q_row($L['lease_id'], $cycle);
-    log_event((int)$q['id'], $addon ? 'added_by_hand' : 'opened', ['lease_id' => $L['lease_id'], 'detail' => ['cycle' => $cycle]]);
+    log_event((int)$q['id'], 'opened', ['lease_id' => $L['lease_id'], 'detail' => ['cycle' => $cycle]]);
     return $q;
+}
+
+function in_set(string $leaseId, string $cycle): bool {
+    foreach (queue_build($cycle) as $r) { if ($r['lease']['lease_id'] === $leaseId) { return true; } }
+    return false;
 }
 
 // current rent missing from the mirror -> ask Rentvine for the rent charge
@@ -80,7 +86,7 @@ function rent_backfill(array &$q, array $L): void {
     if (!$pick || $pick['amount'] === null) { return; }
     $rent = (float)$pick['amount'];
     $pct = ($q['new_rent'] !== null && $rent > 0) ? round((((float)$q['new_rent'] - $rent) / $rent) * 100, 2) : null;
-    db()->prepare("UPDATE renewal_queue SET current_rent = ?, lease_rent = COALESCE(lease_rent, ?), pct_inc = ?,
+    db()->prepare("UPDATE renewal_decisions SET current_rent = ?, lease_rent = COALESCE(lease_rent, ?), pct_inc = ?,
                      rv_old_charge_id = COALESCE(rv_old_charge_id, ?), rv_day_due = COALESCE(rv_day_due, ?)
                    WHERE id = ?")
         ->execute([$rent, $rent, $pct, $pick['id'] !== '' ? $pick['id'] : null, $pick['day_due'], $q['id']]);
@@ -127,12 +133,7 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     $L = lease_one($leaseId);
     if (!$L) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in Sync Center for this office.']); }
     $q = q_row($leaseId, $cycle);
-    if (!$q && $create) {
-        // not pulled by the rule for this cycle? then opening it IS adding it by hand
-        $LP0 = last_posted_map();
-        $byRule = queue_rule($L, null, $cycle, $LP0[$leaseId] ?? null) !== null;
-        $q = q_open($L, $cycle, !$byRule);
-    }
+    if (!$q && $create) { $q = q_open($L, $cycle); }   // a decision row only; membership is separate
     if (!$q) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in cycle ' . $cycle . '.']); }
     rent_backfill($q, $L);
     if ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }
@@ -141,14 +142,16 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
                                 'parking' => $x['parking'], 'rent' => $x['rent'], 'last_increase' => $x['last_renewal'] ?? $x['last_increase'],
                                 'move_in' => $x['move_in'], 'tenant' => $x['tenant']], building_history($L));
     $LP = last_posted_map();
-    $rule = queue_rule($L, $q, $cycle, $LP[$leaseId] ?? null);
+    $AD = addons_for($cycle);
+    $rule = queue_rule($L, $q, $cycle, $LP[$leaseId] ?? null, $AD[$leaseId] ?? null);
     [$anchor, $anchorSrc] = increase_anchor($L, $LP[$leaseId] ?? null);
     return ['lease' => lease_out($L), 'q' => $q, 'ranges' => ranges_for($q, $L), 'history' => $hist,
             'media' => media_row($L['pcode'] ?: $L['property_id']), 'property' => property_row($L['pcode']),
             'past' => q_history($leaseId),
             'cycle' => cycle_info($cycle), 'finalized' => cycle_finalized($cycle),
             'anchor' => ['date' => $anchor, 'source' => $anchorSrc],
-            'cat' => $rule ? $rule[0] : null, 'cat_label' => $rule ? cat_label($rule[0]) : 'not in this cycle', 'reason' => $rule[1] ?? '',
+            'in_set' => $rule !== null, 'addon' => isset($AD[$leaseId]),
+            'cat' => $rule ? $rule[0] : null, 'cat_label' => $rule ? cat_label($rule[0]) : 'not in this set', 'reason' => $rule[1] ?? 'decision only - Add to set to pull it',
             'steps' => array_map('floatval', explode(',', (string)knob('steps'))),
             'step_dollars' => (float)knob('rent_step_dollars')];
 }
@@ -169,7 +172,7 @@ function set_row(array $r, array $PM, string $cycle = ''): array {
             'new_rent' => $newRent, 'change' => ($newRent !== null && $cur !== null) ? $newRent - $cur : null,
             'pct' => $q ? $q['pct_inc'] : null, 'asd' => $q ? $q['sdr_delta'] : null, 'day_due' => $q ? $q['rv_day_due'] : null,
             'increase_date' => $q && $q['increase_date'] ? $q['increase_date'] : cycle_info($r['cycle'] ?? cycle_default())['increase'],
-            'status' => $q ? $q['status'] : null, 'addon' => $q ? (bool)$q['addon'] : false, 'revisit' => $q ? (bool)$q['revisit'] : false,
+            'status' => $q ? $q['status'] : null, 'addon' => !empty($r['addon']), 'revisit' => $q ? (bool)$q['revisit'] : false,
             'remarks' => $q ? $q['remarks'] : null, 'special' => $P['special'] ?? null, 'vaoao' => $P['vaoao'] ?? null, 'color' => $P['color'] ?? null,
             'deposit_mismatch' => ($cur !== null && $dep !== null && abs($cur - $dep) > 0.5),
             'unfilled' => $newRent === null];
@@ -200,10 +203,12 @@ case 'prep': {
     $out = array_map(fn($r) => set_row($r, $PM, $cycle), $rows);
     $counts = [];
     foreach ($rows as $r) { $counts[$r['cat']] = ($counts[$r['cat']] ?? 0) + 1; }
-    $Q = queue_rows_for($cycle);
-    $overdue = queue_overdue($cycle, $Q, last_posted_map());
+    $setIds = [];
+    foreach ($rows as $r) { $setIds[$r['lease']['lease_id']] = true; }
+    $overdue = queue_overdue($cycle, $setIds, last_posted_map());
+    $unpulled = array_map(fn($r) => set_row($r, $PM, $cycle), queue_unpulled($cycle, $setIds));
     json_out(['ok' => true, 'cycle' => cycle_info($cycle) + ['row' => cycle_row($cycle), 'finalized' => cycle_finalized($cycle), 'default' => cycle_default()],
-              'queue' => $out, 'counts' => $counts, 'cats' => RNW_CATS, 'totals' => set_totals($out),
+              'queue' => $out, 'counts' => $counts, 'cats' => RNW_CATS, 'totals' => set_totals($out), 'unpulled' => $unpulled,
               'overdue' => array_map(fn($o) => ['lease_id' => $o['lease']['lease_id'], 'tenant' => $o['lease']['tenant'], 'pcode' => $o['lease']['pcode'],
                                                 'property' => $o['lease']['property'], 'rent' => $o['lease']['rent'], 'months' => $o['months'], 'anchor' => $o['anchor'], 'source' => $o['source']], $overdue),
               'office' => ['id' => oid(), 'code' => office_code(), 'label' => rnw_office_defaults(oid())['region_label']],
@@ -244,7 +249,7 @@ case 'save': {
     $pinned = array_key_exists('pinned_comps', $in) ? json_encode((array)$in['pinned_comps'], JSON_UNESCAPED_SLASHES) : $q['pinned_comps'];
     $median = array_key_exists('pinned_comps', $in) ? cl_median(array_column((array)$in['pinned_comps'], 'price')) : ($q['comp_median'] !== null ? (float)$q['comp_median'] : null);
     db()->prepare(
-        "UPDATE renewal_queue SET current_rent = ?, new_rent = ?, pct_inc = ?, step_pct = ?, increase_date = ?,
+        "UPDATE renewal_decisions SET current_rent = ?, new_rent = ?, pct_inc = ?, step_pct = ?, increase_date = ?,
             current_deposit = ?, new_deposit = ?, sdr_delta = ?, range_top = ?, range_bottom = ?,
             eval_top = ?, eval_recom = ?, eval_bottom = ?, notes = ?, remarks = ?,
             revisit = ?, special = ?, oa = ?, no_increase = ?, category_override = ?,
@@ -278,11 +283,11 @@ case 'pau': case 'reopen': case 'prepped': {
     if (cycle_finalized($cycle) && $action !== 'reopen') { json_out(['ok' => false, 'error' => 'Cycle is finalized.']); }
     $q = q_open($L, $cycle);
     if ($action === 'pau') {
-        db()->prepare("UPDATE renewal_queue SET status = 'pau', pau_at = NOW(), pau_by = ? WHERE id = ? AND status = 'open'")->execute([$me['key'], $q['id']]);
+        db()->prepare("UPDATE renewal_decisions SET status = 'pau', pau_at = NOW(), pau_by = ? WHERE id = ? AND status = 'open'")->execute([$me['key'], $q['id']]);
     } elseif ($action === 'reopen') {
-        db()->prepare("UPDATE renewal_queue SET status = 'open', pau_at = NULL, pau_by = NULL WHERE id = ? AND status <> 'posted'")->execute([$q['id']]);
+        db()->prepare("UPDATE renewal_decisions SET status = 'open', pau_at = NULL, pau_by = NULL WHERE id = ? AND status <> 'posted'")->execute([$q['id']]);
     } else {
-        db()->prepare("UPDATE renewal_queue SET printed_at = NOW(), printed_by = ? WHERE id = ?")->execute([$me['key'], $q['id']]);
+        db()->prepare("UPDATE renewal_decisions SET printed_at = NOW(), printed_by = ? WHERE id = ?")->execute([$me['key'], $q['id']]);
     }
     log_event((int)$q['id'], $action, ['lease_id' => $id, 'detail' => ['cycle' => $cycle]]);
     json_out(['ok' => true] + record_payload($id, $cycle));
@@ -295,20 +300,22 @@ case 'cycle_add': {
     $L = lease_one($id);
     if (!$L) { json_out(['ok' => false, 'error' => 'Unknown lease.']); }
     if (cycle_finalized($cycle)) { json_out(['ok' => false, 'error' => 'Cycle is finalized.']); }
-    $q = q_row($id, $cycle);
-    if (!$q) { $q = q_open($L, $cycle, true); }
-    elseif (!$q['addon']) { db()->prepare("UPDATE renewal_queue SET addon = 1 WHERE id = ?")->execute([$q['id']]); }
+    db()->prepare("INSERT IGNORE INTO renewal_addons (company_id, office_id, cycle, lease_id, note, added_by) VALUES (?, ?, ?, ?, ?, ?)")
+        ->execute([cid(), oid(), $cycle, $id, trim((string)($in['note'] ?? '')) ?: null, $me['key']]);
+    log_event(null, 'added_by_hand', ['lease_id' => $id, 'detail' => ['cycle' => $cycle]]);
     json_out(['ok' => true, 'lease_id' => $id, 'cycle' => $cycle]);
 }
+// remove an addon from the set. The decision row, if any, is kept (shows under "Not pulled").
 case 'cycle_remove': {
     $id = trim((string)($in['lease_id'] ?? ''));
     $cycle = cyc($in);
+    if (cycle_finalized($cycle)) { json_out(['ok' => false, 'error' => 'Cycle is finalized.']); }
     $q = q_row($id, $cycle);
-    if (!$q) { json_out(['ok' => true]); }
-    if ($q['status'] === 'posted' || cycle_finalized($cycle)) { json_out(['ok' => false, 'error' => 'Posted or finalized rows cannot be removed.']); }
-    if ($q['new_rent'] !== null && empty($in['confirm'])) { json_out(['ok' => false, 'error' => 'This row has a decision. Confirm to remove it.', 'needs_confirm' => true]); }
-    log_event((int)$q['id'], 'removed', ['lease_id' => $id, 'detail' => ['cycle' => $cycle, 'new_rent' => $q['new_rent']]]);
-    db()->prepare("DELETE FROM renewal_queue WHERE id = ?")->execute([$q['id']]);
+    if ($q && $q['status'] === 'posted') { json_out(['ok' => false, 'error' => 'Posted rows cannot be removed from the set.']); }
+    $st = db()->prepare("DELETE FROM renewal_addons WHERE office_id = ? AND cycle = ? AND lease_id = ?");
+    $st->execute([oid(), $cycle, $id]);
+    if ($st->rowCount() === 0) { json_out(['ok' => false, 'error' => 'That lease is in the set by the rule, not by hand - it cannot be removed. Use Category / flags instead.']); }
+    log_event($q ? (int)$q['id'] : null, 'removed_by_hand', ['lease_id' => $id, 'detail' => ['cycle' => $cycle, 'decision_kept' => $q !== null]]);
     json_out(['ok' => true]);
 }
 case 'leases_search': {
@@ -368,7 +375,7 @@ case 'cycle_unfinalize': {
 }
 case 'cycles': {
     $st = db()->prepare("SELECT q.cycle, COUNT(*) n, SUM(q.status = 'posted') posted, SUM(q.new_rent IS NOT NULL) filled, c.finalized_at, c.letters_at
-                         FROM renewal_queue q LEFT JOIN renewal_cycles c ON c.office_id = q.office_id AND c.cycle = q.cycle
+                         FROM renewal_decisions q LEFT JOIN renewal_cycles c ON c.office_id = q.office_id AND c.cycle = q.cycle
                          WHERE q.office_id = ? GROUP BY q.cycle ORDER BY q.cycle DESC LIMIT 36");
     $st->execute([oid()]);
     json_out(['ok' => true, 'cycles' => $st->fetchAll(), 'default' => cycle_default()]);
@@ -407,7 +414,7 @@ case 'comps_pin': {
     $q = q_open($L, $cycle);
     $pinned = array_values(array_filter((array)($in['pinned'] ?? []), 'is_array'));
     $median = cl_median(array_column($pinned, 'price'));
-    db()->prepare("UPDATE renewal_queue SET pinned_comps = ?, comp_median = ? WHERE id = ?")
+    db()->prepare("UPDATE renewal_decisions SET pinned_comps = ?, comp_median = ? WHERE id = ?")
         ->execute([json_encode($pinned, JSON_UNESCAPED_SLASHES), $median, $q['id']]);
     log_event((int)$q['id'], 'comps_pinned', ['lease_id' => $id, 'detail' => ['n' => count($pinned), 'median' => $median]]);
     json_out(['ok' => true, 'median' => $median, 'pinned' => $pinned]);

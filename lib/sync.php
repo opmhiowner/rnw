@@ -313,18 +313,14 @@ function increase_anchor(array $L, ?string $lastPosted): array {
 //   plus any lease that already has a decision row in this cycle
 // Overdue MTM (>= 25 months) is a separate report, not the set.
 // Returns [category, reason] or null when the lease is not in this cycle.
-function queue_rule(array $L, ?array $Q, string $cycle, ?string $lastPosted = null): ?array {
+function queue_rule(array $L, ?array $Q, string $cycle, ?string $lastPosted = null, ?array $addon = null): ?array {
     $ci = cycle_info($cycle);
     $inc = $ci['increase'];
     $mtmMin = (int)knob('mtm_months'); $mtmMax = (int)knob('mtm_months_max');
     $firstY = (int)knob('first_year_months');
 
-    if ($Q && $Q['category_override'] !== null) { return [(int)$Q['category_override'], 'set by hand']; }
-    if ($Q && !empty($Q['addon'])) { return [-3, 'added by hand ' . substr((string)$Q['created_at'], 0, 10)]; }
-
-    $inSet = $Q !== null;
-    $why = $inSet ? 'in this cycle' : '';
-    $cat = null;
+    // membership: the rule, or added by hand. A decision row alone never adds a lease.
+    $cat = null; $why = '';
     if (!$L['mtm'] && $L['end'] !== null && $L['end'] >= $ci['fixed_from'] && $L['end'] <= $ci['fixed_to']) {
         $firstRenewal = $L['move_in'] && months_between($L['move_in'], $L['end']) <= $firstY;
         $cat = $firstRenewal ? 2 : 7; $why = 'lease end ' . $L['end'];
@@ -335,10 +331,13 @@ function queue_rule(array $L, ?array $Q, string $cycle, ?string $lastPosted = nu
             if ($m >= $mtmMin && $m < $mtmMax) { $cat = 8; $why = $m . ' mo since ' . $anchor . ' (' . $src . ')'; }
         }
     }
-    if ($cat === null && !$inSet) { return null; }
-    if ($cat === null) { $cat = $L['mtm'] ? 8 : 7; }
+    if ($cat === null) {
+        if ($addon === null) { return null; }
+        $cat = -3; $why = 'added by hand ' . substr((string)($addon['added_at'] ?? ''), 0, 10) . ($addon['note'] ? ' - ' . $addon['note'] : '');
+    }
 
-    // flags on a row already in the set re-sort it, FileMaker style
+    // flags on the decision row re-sort a row that IS in the set, FileMaker style
+    if ($Q && $Q['category_override'] !== null) { return [(int)$Q['category_override'], 'set by hand']; }
     if ($L['move_out'] || $L['notice'] || !empty($L['vacating'])) { return [1, 'move-out ' . ($L['move_out'] ?? $L['notice'] ?? 'marked to vacate')]; }
     if ($Q && $Q['special'])     { return [-1, 'RNW spec']; }
     if ($Q && $Q['revisit'])     { return [3, 'revisit']; }
@@ -347,13 +346,22 @@ function queue_rule(array $L, ?array $Q, string $cycle, ?string $lastPosted = nu
     return [$cat, $why];
 }
 
+// added by hand for one cycle, keyed by lease
+function addons_for(string $cycle): array {
+    $st = db()->prepare("SELECT * FROM renewal_addons WHERE office_id = ? AND cycle = ?");
+    $st->execute([oid(), $cycle]);
+    $out = [];
+    foreach ($st as $r) { $out[$r['lease_id']] = $r; }
+    return $out;
+}
+
 // overdue MTM: >= mtm_months_max since the last increase, not already in the cycle
-function queue_overdue(string $cycle, array $Q, array $lastPosted): array {
+function queue_overdue(string $cycle, array $inSet, array $lastPosted): array {
     $ci = cycle_info($cycle); $inc = $ci['increase'];
     $mtmMax = (int)knob('mtm_months_max');
     $out = [];
     foreach (leases_all() as $id => $L) {
-        if (!$L['mtm'] || isset($Q[$id])) { continue; }
+        if (!$L['mtm'] || isset($inSet[$id])) { continue; }
         [$anchor, $src] = increase_anchor($L, $lastPosted[$id] ?? null);
         if (!$anchor) { continue; }
         $m = months_between($anchor, $inc);
@@ -365,7 +373,7 @@ function queue_overdue(string $cycle, array $Q, array $lastPosted): array {
 
 // decision rows for one cycle, keyed by lease
 function queue_rows_for(string $cycle): array {
-    $st = db()->prepare("SELECT * FROM renewal_queue WHERE office_id = ? AND cycle = ?");
+    $st = db()->prepare("SELECT * FROM renewal_decisions WHERE office_id = ? AND cycle = ?");
     $st->execute([oid(), $cycle]);
     $out = [];
     foreach ($st as $r) { $out[$r['lease_id']] = $r; }
@@ -374,7 +382,7 @@ function queue_rows_for(string $cycle): array {
 
 // the last posted (or pau'd) rent start per lease from this app's own history
 function last_posted_map(): array {
-    $st = db()->prepare("SELECT lease_id, MAX(increase_date) d FROM renewal_queue
+    $st = db()->prepare("SELECT lease_id, MAX(increase_date) d FROM renewal_decisions
                          WHERE office_id = ? AND status IN ('posted','pau') AND increase_date IS NOT NULL GROUP BY lease_id");
     $st->execute([oid()]);
     $out = [];
@@ -382,29 +390,44 @@ function last_posted_map(): array {
     return $out;
 }
 
-// the set for a cycle: [{lease, cat, cat_label, reason, q}], sorted category > zip > pcode
+// the set for a cycle: [{lease, cat, cat_label, reason, q, addon}], sorted category > zip > pcode.
+// Decisions (q) are joined for display only; they never decide membership.
 function queue_build(?string $cycle = null): array {
     $cycle = $cycle ?: cycle_default();
     $all = leases_all();
     $Q = queue_rows_for($cycle);
+    $AD = addons_for($cycle);
     $LP = last_posted_map();
     $rows = [];
     foreach ($all as $id => $L) {
-        $r = queue_rule($L, $Q[$id] ?? null, $cycle, $LP[$id] ?? null);
+        $r = queue_rule($L, $Q[$id] ?? null, $cycle, $LP[$id] ?? null, $AD[$id] ?? null);
         if ($r === null) { continue; }
         [$cat, $why] = $r;
-        $rows[] = ['lease' => $L, 'cat' => $cat, 'cat_label' => cat_label($cat), 'reason' => $why, 'q' => $Q[$id] ?? null];
+        $rows[] = ['lease' => $L, 'cat' => $cat, 'cat_label' => cat_label($cat), 'reason' => $why, 'q' => $Q[$id] ?? null, 'addon' => $AD[$id] ?? null];
     }
-    // rows added by hand for a lease no longer active in the mirror still show
-    foreach ($Q as $id => $q) {
+    // added by hand for a lease no longer active in the mirror still shows
+    foreach ($AD as $id => $a) {
         if (isset($all[$id])) { continue; }
         $L = lease_one($id);
         if (!$L) { continue; }
-        $rows[] = ['lease' => $L, 'cat' => -3, 'cat_label' => cat_label(-3), 'reason' => 'added by hand (lease inactive in mirror)', 'q' => $q];
+        $rows[] = ['lease' => $L, 'cat' => -3, 'cat_label' => cat_label(-3), 'reason' => 'added by hand (lease inactive in mirror)', 'q' => $Q[$id] ?? null, 'addon' => $a];
     }
     usort($rows, function ($a, $b) {
         return [$a['cat'], $a['lease']['zip'], $a['lease']['pcode'], $a['lease']['unit']]
            <=> [$b['cat'], $b['lease']['zip'], $b['lease']['pcode'], $b['lease']['unit']];
     });
     return $rows;
+}
+
+// decisions saved for this cycle whose lease is NOT in the set (rule changed, addon
+// removed, or opened directly): kept, shown under "Not pulled", never in the list
+function queue_unpulled(string $cycle, array $setIds): array {
+    $out = [];
+    foreach (queue_rows_for($cycle) as $id => $q) {
+        if (isset($setIds[$id])) { continue; }
+        $L = lease_one($id);
+        if (!$L) { continue; }
+        $out[] = ['lease' => $L, 'cat' => 0, 'cat_label' => 'not pulled', 'reason' => 'decision saved, lease not in this set', 'q' => $q, 'addon' => null];
+    }
+    return $out;
 }

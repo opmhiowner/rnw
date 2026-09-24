@@ -286,7 +286,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         if (!$pick) {
             return $fail('find', ['code' => $r['code'], 'error' => 'No open recurring charge matched "' . rv_tpl('rv_rent_match') . '" - check Settings > Rentvine.', 'body' => $r['body']]);
         }
-        $pdo->prepare("UPDATE renewal_queue SET rv_old_charge_id = ?, rv_day_due = ? WHERE id = ?")->execute([$pick['id'], $pick['day_due'], $q['id']]);
+        $pdo->prepare("UPDATE renewal_decisions SET rv_old_charge_id = ?, rv_day_due = ? WHERE id = ?")->execute([$pick['id'], $pick['day_due'], $q['id']]);
         $q['rv_old_charge_id'] = $pick['id']; $q['rv_day_due'] = $pick['day_due'];
         if (rv_tpl('rv_rent_account_id') === '' && $pick['account'] !== '') { setting_put('rv_rent_account_id', $pick['account']); }   // learn the rent GL account from the live charge
         $log[] = ['step' => 'find', 'ok' => true, 'note' => 'charge ' . $pick['id'] . ' ($' . number_format((float)$pick['amount'], 2) . ' ' . $pick['desc'] . ', due day ' . ($pick['day_due'] ?? '?') . ')'];
@@ -298,7 +298,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $s = $steps['expire'];
         $r = rv_call($s['method'], $s['url'], $s['body']);
         if (!$r['ok']) { return $fail('expire', $r); }
-        $pdo->prepare("UPDATE renewal_queue SET rv_old_charge_expired_at = NOW() WHERE id = ?")->execute([$q['id']]);
+        $pdo->prepare("UPDATE renewal_decisions SET rv_old_charge_expired_at = NOW() WHERE id = ?")->execute([$q['id']]);
         $q['rv_old_charge_expired_at'] = date('Y-m-d H:i:s');
         $log[] = ['step' => 'expire', 'ok' => true, 'note' => 'ended ' . $plan['steps'][1]['label']];
         log_event((int)$q['id'], 'rv_expire', ['lease_id' => $q['lease_id'], 'detail' => ['charge' => $q['rv_old_charge_id'], 'reply' => mb_substr($r['body'], 0, 2000)]]);
@@ -309,7 +309,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $r = rv_call($s['method'], $s['url'], $s['body']);
         if (!$r['ok']) { return $fail('create', $r); }
         $nid = (string)(sx($r['json'] ?? [], ['recurringCharge.leaseRecurringChargeID', 'leaseRecurringChargeID', 'recurringChargeID', 'recurringCharge.recurringChargeID', 'recurringCharge.id', 'id', 'data.id']) ?? ('ok-' . date('YmdHis')));
-        $pdo->prepare("UPDATE renewal_queue SET rv_new_charge_id = ? WHERE id = ?")->execute([$nid, $q['id']]);
+        $pdo->prepare("UPDATE renewal_decisions SET rv_new_charge_id = ? WHERE id = ?")->execute([$nid, $q['id']]);
         $q['rv_new_charge_id'] = $nid;
         $log[] = ['step' => 'create', 'ok' => true, 'note' => 'new charge ' . $nid];
         log_event((int)$q['id'], 'rv_create', ['lease_id' => $q['lease_id'], 'detail' => ['charge' => $nid, 'amount' => $q['new_rent'], 'reply' => mb_substr($r['body'], 0, 2000)]]);
@@ -321,7 +321,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $r = rv_call($s['method'], $s['url'], $s['body']);
         if (!$r['ok']) { return $fail('sdr', $r); }
         $nid = (string)(sx($r['json'] ?? [], ['charge.chargeID', 'charge.leaseChargeID', 'chargeID', 'leaseChargeID', 'transaction.transactionID', 'transactionID', 'charge.id', 'id', 'data.id']) ?? ('ok-' . date('YmdHis')));
-        $pdo->prepare("UPDATE renewal_queue SET rv_sdr_charge_id = ? WHERE id = ?")->execute([$nid, $q['id']]);
+        $pdo->prepare("UPDATE renewal_decisions SET rv_sdr_charge_id = ? WHERE id = ?")->execute([$nid, $q['id']]);
         $q['rv_sdr_charge_id'] = $nid;
         $log[] = ['step' => 'sdr', 'ok' => true, 'note' => 'ledger charge ' . $nid . ' $' . number_format($sdr, 2)];
         log_event((int)$q['id'], 'rv_sdr', ['lease_id' => $q['lease_id'], 'detail' => ['charge' => $nid, 'amount' => $sdr, 'reply' => mb_substr($r['body'], 0, 2000)]]);
@@ -331,7 +331,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
         $s = $steps['custom'];
         $r = rv_call($s['method'], $s['url'], $s['body']);
         if (!$r['ok']) { return $fail('custom', $r); }
-        $pdo->prepare("UPDATE renewal_queue SET rv_custom_field_at = NOW() WHERE id = ?")->execute([$q['id']]);
+        $pdo->prepare("UPDATE renewal_decisions SET rv_custom_field_at = NOW() WHERE id = ?")->execute([$q['id']]);
         $q['rv_custom_field_at'] = date('Y-m-d H:i:s');
         $log[] = ['step' => 'custom', 'ok' => true, 'note' => rv_tpl('rv_custom_field_name') . ' set'];
         log_event((int)$q['id'], 'rv_custom', ['lease_id' => $q['lease_id'], 'detail' => ['reply' => mb_substr($r['body'], 0, 2000)]]);
@@ -340,7 +340,7 @@ function rv_post(array $q, array $L, ?string $only = null): array {
             && ($sdr <= 0 || !empty($q['rv_sdr_charge_id'])) && !empty($q['rv_custom_field_at']);
     if ($allDone && $q['status'] !== 'posted') {
         $u = current_user();
-        $pdo->prepare("UPDATE renewal_queue SET status = 'posted', posted_at = NOW(), posted_by = ? WHERE id = ?")
+        $pdo->prepare("UPDATE renewal_decisions SET status = 'posted', posted_at = NOW(), posted_by = ? WHERE id = ?")
             ->execute([$u['key'] ?? 'system', $q['id']]);
         log_event((int)$q['id'], 'posted', ['lease_id' => $q['lease_id']]);
     }

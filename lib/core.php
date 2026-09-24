@@ -23,7 +23,7 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 4;
+const RNW_REV = 5;
 function rnw_version(): string {
     $r = RNW_REV;
     if ($r < 100) { return '.' . $r; }
@@ -193,11 +193,14 @@ function schema_ensure(): void {
           KEY idx_company (company_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
-    // One row per lease per review cycle. The lease_* columns are a
-    // snapshot of what Sync Center said when the row was opened, so
-    // a decision is explainable later even after Rentvine changes.
-    $tables['renewal_queue'] = "
-        CREATE TABLE IF NOT EXISTS renewal_queue (
+    // DECISIONS: one row per lease per cycle - new rent, deposit
+    // increase, flags, notes, Rentvine step ids. A decision row does
+    // NOT put a lease in the set: the set is the pull rule plus
+    // renewal_addons. The lease_* columns are a snapshot of what Sync
+    // Center said when the row was opened, so a decision is explainable
+    // later even after Rentvine changes. (v0.2 renamed from renewal_decisions.)
+    $tables['renewal_decisions'] = "
+        CREATE TABLE IF NOT EXISTS renewal_decisions (
           id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
           company_id INT UNSIGNED NOT NULL DEFAULT 1,
           office_id INT UNSIGNED NOT NULL DEFAULT 1,
@@ -289,6 +292,20 @@ function schema_ensure(): void {
           KEY idx_company (company_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
+    // ADDED BY HAND: the only way into the set besides the pull rule.
+    $tables['renewal_addons'] = "
+        CREATE TABLE IF NOT EXISTS renewal_addons (
+          company_id INT UNSIGNED NOT NULL DEFAULT 1,
+          office_id INT UNSIGNED NOT NULL DEFAULT 1,
+          cycle VARCHAR(7) NOT NULL,
+          lease_id VARCHAR(64) NOT NULL,
+          note VARCHAR(255) NULL,
+          added_by VARCHAR(64) NULL,
+          added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (office_id, cycle, lease_id),
+          KEY idx_company (company_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
     // One row per increase month per office: the "set". Finalized = made permanent
     // (FileMaker "Make permanent record"); rows in a finalized cycle are read-only.
     $tables['renewal_cycles'] = "
@@ -334,18 +351,28 @@ function schema_ensure(): void {
           KEY idx_company (company_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
+    // v0.2: renewal_decisions -> renewal_decisions (keep the rows), addon flags -> renewal_addons
+    $have = [];
+    foreach ($pdo->query("SHOW TABLES") as $r) { $have[strtolower((string)reset($r))] = true; }
+    if (isset($have['renewal_decisions']) && !isset($have['renewal_decisions'])) {
+        $pdo->exec("RENAME TABLE renewal_decisions TO renewal_decisions");
+    }
     foreach ($tables as $sql) { $pdo->exec($sql); }
+
 
     // columns added after v0.1
     $addcols = [];
-    $addcols['renewal_queue']['rv_day_due']      = "ALTER TABLE renewal_queue ADD COLUMN rv_day_due SMALLINT NULL AFTER rv_old_charge_id";
-    $addcols['renewal_queue']['addon']           = "ALTER TABLE renewal_queue ADD COLUMN addon TINYINT(1) NOT NULL DEFAULT 0 AFTER special";
-    $addcols['renewal_queue']['remarks']         = "ALTER TABLE renewal_queue ADD COLUMN remarks VARCHAR(255) NULL AFTER notes";
+    $addcols['renewal_decisions']['rv_day_due'] = "ALTER TABLE renewal_decisions ADD COLUMN rv_day_due SMALLINT NULL AFTER rv_old_charge_id";
+    $addcols['renewal_decisions']['addon']      = "ALTER TABLE renewal_decisions ADD COLUMN addon TINYINT(1) NOT NULL DEFAULT 0 AFTER special";
+    $addcols['renewal_decisions']['remarks']    = "ALTER TABLE renewal_decisions ADD COLUMN remarks VARCHAR(255) NULL AFTER notes";
     foreach ($addcols as $table => $cols) {
         $have = [];
         foreach ($pdo->query("SHOW COLUMNS FROM `$table`") as $r) { $have[$r['Field']] = true; }
         foreach ($cols as $col => $sql) { if (!isset($have[$col])) { $pdo->exec($sql); } }
     }
+    // rows added by hand before v0.2 kept their flag on the decision row: carry them over once
+    $pdo->exec("INSERT IGNORE INTO renewal_addons (company_id, office_id, cycle, lease_id, added_by, added_at)
+                SELECT company_id, office_id, cycle, lease_id, decided_by, created_at FROM renewal_decisions WHERE addon = 1");
 }
 
 // ---------- per-office settings

@@ -52,6 +52,7 @@ $me = require_login();
             <span class="tag lg" id="h-cat"></span>
             <span class="tag lg ptype" id="h-ptype"></span>
             <span class="tag lg" id="h-status"></span>
+            <button class="btn xs pri hide" id="btn-add-set">Add to this set</button>
           </div>
           <div class="sub" id="h-sub"></div>
         </div>
@@ -272,6 +273,7 @@ $me = require_login();
     $('h-prop').textContent = (L.property || L.address || 'Lease ' + L.lease_id) + (L.unit ? ' #' + L.unit : '');
     $('h-pcode').textContent = L.pcode || L.lease_id; $('h-pcode').title = L.code || '';
     $('h-cat').textContent = S.rec.cat_label; $('h-cat').className = 'tag lg ' + (S.rec.cat === null ? '' : 'c' + S.rec.cat); $('h-cat').title = S.rec.reason;
+    $('btn-add-set').classList.toggle('hide', S.rec.in_set || S.rec.finalized);
     $('h-ptype').textContent = L.ptype || ''; $('h-ptype').classList.toggle('hide', !L.ptype);
     $('h-status').textContent = q.status === 'open' ? '' : q.status; $('h-status').className = 'tag lg ' + q.status; $('h-status').classList.toggle('hide', q.status === 'open');
     $('h-sub').innerHTML = `Owner <strong>${fmt.esc(L.owner || '—')}</strong> &nbsp;·&nbsp; Tenant <strong>${fmt.esc(L.tenant || '—')}</strong> &nbsp;·&nbsp; ${fmt.esc(L.address || '')}${L.zip && !(L.address || '').includes(L.zip) ? ' ' + fmt.esc(L.zip) : ''}`;
@@ -389,6 +391,11 @@ $me = require_login();
     S.rec = j; renderRecord(); toast('Stamped as prepped. Printing itself is parked (see README).');
   };
   $('btn-next').onclick = () => next(1);
+  $('btn-add-set').onclick = async () => {
+    const j = await api('cycle_add', { lease_id: S.sel, cycle: S.cycle });
+    if (!j.ok) { toast(j.error, true); return; }
+    toast('Added to the ' + fmt.cycle(S.cycle) + ' set'); await loadBoard(); pick(S.sel);
+  };
   function next(dir) {
     if (!S.filtered.length) return;
     const i = S.filtered.findIndex(r => r.lease_id === S.sel);

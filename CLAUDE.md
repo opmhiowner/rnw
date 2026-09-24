@@ -192,3 +192,9 @@ wait for their own end date. `-2 DUEDATE>1` is reserved.
 **Open:** Rentvine's Last Renewal Date custom field is not mirrored by Sync Center (no custom-fields
 feed), so the MTM anchor for leases never posted through this app falls back to the eligibility date
 minus a year, then move-in. Ask Sync Center for a custom-fields feed, or fetch live per lease.
+**Sep 24 (Larry): decisions in a separate table from the pull.** `renewal_queue` → `renewal_decisions`
+(renamed in place by self-heal, rows kept); the set = pull rule + `renewal_addons` only. A decision row never
+adds a lease; a decision for a lease not in the set shows under Prep › "Not pulled" with an Add button; only
+hand-added rows can be removed (decision kept). Main shows "not in this set" + "Add to this set" on such a
+record. The fixed window starts on the 2nd (anniversary → next 1st); "this run" jumps to the next increase
+month once the current month's letters deadline (the 11th) has passed.

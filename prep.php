@@ -98,7 +98,7 @@ $me = require_login();
   const { api, bus, display, fmt, toast, LS } = RC;
   const $ = (id) => document.getElementById(id);
   const S = { cycle: LS('renewal.cycle') || '', board: null, rows: [], filter: 'all', cat: 'all', q: '', sel: null, sort: null, dir: 1 };
-  const FILTERS = [['all', 'All'], ['mtm', 'MTM'], ['fixed', 'Fixed'], ['addon', 'Addon'], ['unfilled', 'Unfilled'], ['exceptions', 'Exceptions'], ['pau', 'Pau'], ['posted', 'Posted']];
+  const FILTERS = [['all', 'All'], ['mtm', 'MTM'], ['fixed', 'Fixed'], ['addon', 'Addon'], ['unfilled', 'Unfilled'], ['exceptions', 'Exceptions'], ['pau', 'Pau'], ['posted', 'Posted'], ['unpulled', 'Not pulled']];
   const COLS = [
     ['increase_date', 'Date', v => fmt.dateShort(v)], ['revisit', 'Rev', v => v ? '✕' : ''], ['pcode', 'Pcode', v => fmt.esc(v)],
     ['last_increase', 'Last incr', v => fmt.dateShort(v)], ['move_in', 'Move in', v => fmt.date(v)], ['end', 'Lease end', (v, r) => r.mtm ? 'MTM' : fmt.date(v)],
@@ -119,14 +119,14 @@ $me = require_login();
     if (cycle) S.cycle = cycle;
     const j = await api('prep', S.cycle ? { cycle: S.cycle } : {});
     if (!j.ok) { toast(j.error, true); return; }
-    S.board = j; S.cycle = j.cycle.cycle; S.rows = j.queue; LS('renewal.cycle', S.cycle);
+    S.board = j; S.cycle = j.cycle.cycle; S.rows = j.queue; S.unpulled = j.unpulled || []; LS('renewal.cycle', S.cycle);
     $('c-label').textContent = 'Increase ' + fmt.date(j.cycle.increase);
     $('c-info').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters out by ${fmt.date(j.cycle.letters_by)} · upload in ${j.cycle.upload_month} · fixed ends ${fmt.dateShort(j.cycle.fixed_from)}–${fmt.dateShort(j.cycle.fixed_to)}` + (j.cycle.row.letters_at ? ' · letters sent ' + fmt.date(j.cycle.row.letters_at) : '');
     $('c-final').classList.toggle('hide', !j.cycle.finalized);
     $('btn-final').textContent = j.cycle.finalized ? 'Reopen cycle' : 'Make permanent (finalize)';
     $('offices').innerHTML = (j.offices.length ? j.offices : [{ code: j.office.code, label: j.office.label }]).map(o => `<button class="btn sm ${o.code === j.office.code ? 'on' : ''}" data-office="${fmt.esc(o.code)}">${fmt.esc(o.code)}</button>`).join('');
     $('offices').querySelectorAll('button').forEach(b => b.onclick = async () => { await api('board', { office: b.dataset.office }); load(); });
-    $('filters').innerHTML = FILTERS.map(([k, l]) => `<button class="btn xs ${S.filter === k ? 'on' : ''}" data-f="${k}">${l}</button>`).join('');
+    $('filters').innerHTML = FILTERS.map(([k, l]) => `<button class="btn xs ${S.filter === k ? 'on' : ''}" data-f="${k}">${l}${k === 'unpulled' && S.unpulled.length ? ' · ' + S.unpulled.length : ''}</button>`).join('');
     $('filters').querySelectorAll('button').forEach(b => b.onclick = () => { S.filter = b.dataset.f; render(); });
     const cats = [['all', 'All']].concat(Object.keys(j.cats).map(k => [k, k + ' ' + j.cats[k]]));
     $('cats').innerHTML = cats.map(([k, l]) => `<button class="btn xs ${S.cat === k ? 'on' : ''}" data-cat="${k}">${fmt.esc(l)}${j.counts[k] ? ' · ' + j.counts[k] : ''}</button>`).join('');
@@ -139,6 +139,7 @@ $me = require_login();
   }
   function filtered() {
     const q = S.q.toLowerCase();
+    if (S.filter === 'unpulled') return S.unpulled.filter(r => !q || [r.tenant, r.pcode, r.property, r.owner].join(' ').toLowerCase().includes(q));
     return S.rows.filter(r => {
       if (S.cat !== 'all' && String(r.cat) !== S.cat) return false;
       if (q && ![r.tenant, r.pcode, r.property, r.owner, r.address, r.vaoao, r.special].join(' ').toLowerCase().includes(q)) return false;
@@ -158,23 +159,25 @@ $me = require_login();
       || `<tr><td colspan="${COLS.length}" class="muted" style="padding:20px">Nothing in this set for that filter.</td></tr>`;
     $('tbody').querySelectorAll('tr.r').forEach(tr => tr.onclick = () => pick(tr.dataset.id));
     const t = S.board.totals, shown = rows.length;
-    $('qlabel').textContent = `${shown} of ${t.count} in the set · ${S.filter === 'all' ? 'sorted by category › zip › pcode' : S.filter}`;
+    $('qlabel').textContent = S.filter === 'unpulled' ? `${shown} decision${shown === 1 ? '' : 's'} saved for leases NOT in this set - kept, not pulled. Add to pull one.` : `${shown} of ${t.count} in the set · ${S.filter === 'all' ? 'sorted by category › zip › pcode' : S.filter}`;
     $('totals').innerHTML = [['Rows', t.count], ['Fixed / MTM / Addon', `${t.fixed} / ${t.mtm} / ${t.addon}`], ['Filled', `${t.filled} of ${t.count}`], ['Unfilled', t.count - t.filled],
       ['Total increase / mo', fmt.money(t.increase)], ['Total ASD', fmt.money(t.asd)], ['Exceptions', t.exceptions], ['Pau / Posted', `${t.pau} / ${t.posted}`]]
       .map(([k, v]) => `<span>${k}</span><strong>${v}</strong>`).join('');
     renderSel();
   }
   function renderSel() {
-    const r = S.rows.find(x => x.lease_id === S.sel);
+    const r = S.rows.find(x => x.lease_id === S.sel) || S.unpulled.find(x => x.lease_id === S.sel);
     if (!r) { $('sel-card').innerHTML = '<h3>No row selected</h3><div class="muted" style="font-size:12px">Click a row. Main follows it.</div>'; return; }
     $('sel-card').innerHTML = `<h3>${fmt.esc(r.property)}${r.unit ? ' #' + fmt.esc(r.unit) : ''} <span class="pill">${fmt.esc(r.pcode)}</span></h3>
       <div style="font-size:12px">${fmt.esc(r.tenant)} · ${fmt.esc(r.cat_label)} <span class="muted">${fmt.esc(r.reason)}</span></div>
       <div class="grid2" style="gap:6px;font-size:12px"><div class="fld"><span>Rent → new</span><strong class="mono">${fmt.money(r.rent)} → ${r.new_rent === null ? '<span class="unf">unfilled</span>' : fmt.money(r.new_rent)}</strong></div>
       <div class="fld"><span>Deposit → ASD</span><strong class="mono">${fmt.money(r.deposit)} → ${r.asd ? '+' + fmt.money(r.asd) : '—'}</strong></div></div>
       ${r.special ? `<div class="strip warn" style="font-size:11px">${fmt.esc(r.special)}</div>` : ''}
-      <div class="row" style="gap:6px"><button class="btn sm" id="s-open">Open on Main</button>${r.status !== 'posted' && !S.board.cycle.finalized ? `<button class="btn sm" id="s-remove">Remove from set</button>` : ''}</div>`;
+      <div class="muted" style="font-size:11px">${r.cat === 0 ? 'Not in this set. The saved figures are kept; press Add to pull it.' : (r.addon ? 'In the set by hand.' : 'In the set by the rule.')}</div>
+      <div class="row" style="gap:6px"><button class="btn sm" id="s-open">Open on Main</button>${r.cat === 0 && !S.board.cycle.finalized ? `<button class="btn sm pri" id="s-add">Add to set</button>` : ''}${r.addon && r.status !== 'posted' && !S.board.cycle.finalized ? `<button class="btn sm" id="s-remove">Remove from set</button>` : ''}</div>`;
     $('s-open').onclick = () => publish(r);
     const rm = $('s-remove'); if (rm) rm.onclick = () => removeLease(r.lease_id);
+    const ad = $('s-add'); if (ad) ad.onclick = () => addLease(r.lease_id);
   }
   function publish(r) {
     bus.publish({ from: 'prep', record_id: r.lease_id, cycle: S.cycle, rent_proposal: Number(r.new_rent ?? r.rent ?? 0), current_rent: Number(r.rent || 0), pct: Number(r.pct || 0),
@@ -187,10 +190,10 @@ $me = require_login();
     toast('Added to ' + fmt.cycle(S.cycle)); $('add-q').value = ''; $('add-results').innerHTML = ''; await load(); pick(id);
   }
   async function removeLease(id) {
-    let j = await api('cycle_remove', { lease_id: id, cycle: S.cycle });
-    if (!j.ok && j.needs_confirm) { if (!confirm('This row has a decision. Remove it from the set anyway?')) return; j = await api('cycle_remove', { lease_id: id, cycle: S.cycle, confirm: 1 }); }
+    if (!confirm('Remove this lease from the set? Any saved figures are kept under "Not pulled".')) return;
+    const j = await api('cycle_remove', { lease_id: id, cycle: S.cycle });
     if (!j.ok) { toast(j.error, true); return; }
-    S.sel = null; toast('Removed'); load();
+    toast('Removed from the set'); load();
   }
   let addT;
   $('add-q').addEventListener('input', () => { clearTimeout(addT); addT = setTimeout(async () => {
