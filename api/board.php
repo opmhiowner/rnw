@@ -223,7 +223,7 @@ case 'prep': {
               'offices' => $me['offices'], 'me' => ['key' => $me['key'], 'name' => $me['name']],
               'sync' => ['ready' => sync_ready(), 'last' => sync_last_run(), 'leases' => count(leases_all())],
               'version' => rnw_version(),
-              'display' => ['on' => (string)knob('display_mode') === '1', 'scale' => (float)knob('display_scale')]]);
+              'display' => ['on' => (string)knob('display_mode') === '1', 'scale' => (float)knob('display_scale'), 'main_scale' => (float)knob('main_scale')]]);
 }
 
 case 'record': {

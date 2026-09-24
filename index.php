@@ -6,7 +6,7 @@ schema_ensure();
 $me = require_login();
 ?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="main-window">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,6 +57,8 @@ $me = require_login();
         <span class="muted" style="font-size:11px" id="pos"></span> <span style="font-size:11px;color:var(--warn)" id="savestate"></span>
         <a href="prep.php" target="rc-prep" id="lnk-prep2" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep screen</a>
       </div>
+      <!-- the set, three rows tall: every property in this increase month from Sync Center; the open one is highlighted -->
+      <div class="setstrip"><table><thead><tr><th>#</th><th>Pcode</th><th>Tenant</th><th>Property</th><th>Cat</th><th>Type</th><th>Lease end</th><th class="num">Rent</th><th class="num">New rent</th><th class="num">%</th><th>Status</th></tr></thead><tbody id="settbl"></tbody></table></div>
       <div class="rec-head">
         <div class="grow" style="display:flex;flex-direction:column;gap:2px">
           <div class="row" style="gap:10px;flex-wrap:wrap">
@@ -225,6 +227,7 @@ $me = require_login();
     $('c-info').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters by ${fmt.dateShort(j.cycle.letters_by)} · ${j.totals.filled}/${j.totals.count} filled · +${fmt.money(j.totals.increase)}/mo`;
     $('c-prev').onclick = () => { S.cycle = j.cycle.prev; S.sel = null; loadBoard(); }; $('c-next').onclick = () => { S.cycle = j.cycle.next; S.sel = null; loadBoard(); };
     display.apply(j.display.on, j.display.scale);
+    document.documentElement.style.setProperty('--main-scale', String(j.display.main_scale || 1.15));
     $('offices').innerHTML = (j.offices.length ? j.offices : [{ code: j.office.code, label: j.office.label }])
       .map(o => `<button class="btn sm ${o.code === j.office.code ? 'on' : ''}" data-office="${fmt.esc(o.code)}" aria-label="${fmt.esc(o.label)}">${fmt.esc(o.code)}</button>`).join('');
     $('offices').querySelectorAll('button').forEach(b => b.onclick = () => loadBoard(b.dataset.office));
@@ -261,6 +264,17 @@ $me = require_login();
       </button>`;
     }).join('') || '<div class="muted" style="padding:24px 16px;text-align:center">Nothing in the queue for this filter.</div>';
     $('queue').querySelectorAll('.qrow').forEach(b => b.onclick = () => pick(b.dataset.id));
+    // the three-row set table at the top of the record
+    $('settbl').innerHTML = S.filtered.map((r, n) => `<tr class="${r.lease_id === S.sel ? 'on' : ''}" data-id="${fmt.esc(r.lease_id)}">
+        <td class="muted">${n + 1}</td><td><strong>${fmt.esc(r.pcode || '')}</strong></td><td>${fmt.esc(r.tenant || '(no tenant)')}</td>
+        <td class="prop" title="${fmt.esc(r.address || '')}">${fmt.esc(r.property)}${r.unit ? ' #' + fmt.esc(r.unit) : ''}</td>
+        <td><span class="tag c${r.cat}">${fmt.esc(r.cat_label)}</span></td><td>${fmt.esc(r.ptype || '')}</td>
+        <td>${r.mtm ? 'MTM' : fmt.date(r.end)}</td><td class="num">${fmt.money(r.rent)}</td>
+        <td class="num">${r.unfilled ? '<span style="color:var(--warn);font-weight:700">unfilled</span>' : fmt.money(r.new_rent)}</td><td class="num">${r.unfilled ? '' : fmt.pct(r.pct)}</td>
+        <td>${r.status && r.status !== 'open' ? `<span class="tag ${r.status}">${r.status}</span>` : ''}${r.addon ? ' <span class="muted" style="font-size:10px">by hand</span>' : ''}</td></tr>`).join('')
+      || '<tr><td colspan="11" class="muted">Nothing in the set for this filter · open the Prep screen</td></tr>';
+    $('settbl').querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => pick(tr.dataset.id));
+    const onRow = $('settbl').querySelector('tr.on'); if (onRow) onRow.scrollIntoView({ block: 'nearest' });
     const i = S.filtered.findIndex(r => r.lease_id === S.sel);
     $('pos').textContent = S.filtered.length ? ((i >= 0 ? (i + 1) + ' of ' : '') + S.filtered.length + ' in the set · < > or ← →') : 'set is empty · open the Prep screen';
   }
@@ -519,7 +533,7 @@ $me = require_login();
         <label>Photo agent URL</label><input class="in" id="s-agent" value="${fmt.esc(LS('renewal.agent') || 'http://localhost:8765')}">
       </div>
       <div class="label">Office rules</div>
-      <div class="kv">${f('display_mode', 'Display mode default (1 = on)')}${f('display_scale', 'Display scale')}${f('cycle_offset', 'Run month + N = increase month')}${f('letters_day', 'Letters out by day of run month')}
+      <div class="kv">${f('display_mode', 'Display mode default (1 = on)')}${f('display_scale', 'Display scale')}${f('main_scale', 'Main window size (1 = 100 %, 1.15 = 115 %)')}${f('cycle_offset', 'Run month + N = increase month')}${f('letters_day', 'Letters out by day of run month')}
         ${f('mtm_months', 'MTM: months since last increase (from)')}${f('mtm_months_max', 'MTM: months since last increase (to, exclusive)')}${f('first_year_months', 'NEW LEASE = lease end within N months of move-in')}
         ${f('steps', 'Step buttons (%)')}${f('deposit_rule', 'Deposit rule (match_rent | keep)')}
         ${f('cl_site', 'Craigslist site')}${f('cl_area', 'Craigslist area (oah, blank = all)')}${f('cl_miles', 'Craigslist miles')}</div>

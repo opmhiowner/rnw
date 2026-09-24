@@ -215,3 +215,7 @@ key>[&lease=<id>][&cycle=YYYY-MM][&win=main|prep|post|media|comps]`: per-office 
 (≥ 16 chars, never returned by the API, Generate button in Settings › FileMaker link) and `fm_login_user`
 (the Hub user the link signs the PC in as; blank → Hub login with `next=`). Builds the same `$_SESSION['core']`
 the Hub's login builds, logs `fm_link_login`. Main honours `?lease=&cycle=` once (then strips them from the URL).
+
+**Sep 24 (Larry): Main gets the set as a three-row table at the top** (`.setstrip`, `#settbl`, fed from the same
+`S.filtered` the `<` `>` arrows walk; open row highlighted + scrolled into view) and **runs at 115 % on its own**
+(`main_scale` setting, CSS `html.main-window[data-display="off"] { zoom }`; display mode 135 % still wins when on).

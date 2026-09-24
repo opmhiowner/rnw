@@ -431,6 +431,7 @@ function rnw_defaults(): array {
         'deposit_rule'       => 'match_rent',   // new deposit = new rent
         'display_mode'       => '0',     // 135 % type scale: off by default (on for the meeting-room TVs, Settings)
         'display_scale'      => '1.35',
+        'main_scale'         => '1.15',  // Main window alone, when display mode is off
         'cl_site'            => 'honolulu',
         'cl_area'            => 'oah',
         'cl_miles'           => '1',

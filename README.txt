@@ -200,6 +200,13 @@ THE RECORD (Main, center pane)
     Post to Rentvine  this one record - see below
     Enter saves the record; < > in the Rent decision card (or the
     arrow keys) move to the previous / next renewal in the set.
+    The set itself is the table at the top of Main, three rows
+    tall and scrollable (pcode, tenant, property, category, type,
+    lease end, rent, new rent, %, status - all from Sync Center
+    and this cycle's decisions); the open record is highlighted
+    and a click opens a row. Main runs at 115 % on its own
+    (Settings > "Main window size"); display mode still wins when
+    it is on.
 
 
 POST TO RENTVINE  (bills are NEVER created)

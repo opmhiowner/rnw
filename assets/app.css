@@ -13,6 +13,7 @@
 }
 html { font-size:13px; }
 html[data-display="on"] { zoom:var(--display-scale,1.35); }
+html.main-window[data-display="off"] { zoom:var(--main-scale,1.15); }   /* Main alone runs a little larger (Settings > Main window size) */
 * { box-sizing:border-box; }
 body { margin:0; font-family:'IBM Plex Sans',system-ui,sans-serif; background:var(--ground); color:var(--ink);
        height:100vh; overflow:hidden; font-size:13px; line-height:1.4; }
@@ -168,3 +169,14 @@ textarea.in { height:56px; padding:8px 10px; resize:vertical; line-height:1.4; }
 .steps .ok { color:var(--green); } .steps .todo { color:var(--muted); } .steps .fail { color:var(--red); }
 pre.small { font-size:11px; background:var(--field); padding:8px; border-radius:6px; overflow:auto; max-height:200px; margin:0; white-space:pre-wrap; word-break:break-all; }
 kbd { font-family:var(--mono); font-size:11px; background:var(--field); border:1px solid var(--line); border-radius:4px; padding:0 5px; }
+
+/* Main: the set as a table, three rows tall, above the record */
+.setstrip { border-bottom:1px solid var(--hair); background:var(--pane); max-height:calc(3 * 30px + 26px); overflow:auto; flex-shrink:0; }
+.setstrip table { border-collapse:collapse; width:100%; font-size:12px; }
+.setstrip th { position:sticky; top:0; background:var(--field); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); padding:5px 10px; text-align:left; white-space:nowrap; border-bottom:1px solid var(--hair); z-index:1; }
+.setstrip td { padding:5px 10px; border-bottom:1px solid var(--hair2); white-space:nowrap; height:30px; box-sizing:border-box; cursor:pointer; }
+.setstrip th.num, .setstrip td.num { text-align:right; font-family:var(--mono); }
+.setstrip td.prop { max-width:240px; overflow:hidden; text-overflow:ellipsis; }
+.setstrip tr:hover td { background:#fff; }
+.setstrip tr.on td { background:var(--teal-bg); font-weight:600; }
+.setstrip tr.on td:first-child { box-shadow:inset 4px 0 0 var(--teal); }
