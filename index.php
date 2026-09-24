@@ -18,8 +18,9 @@ $me = require_login();
 <body>
 <div class="shell">
 
-  <!-- ============ LEFT: renewal queue ============ -->
-  <div class="pane left">
+  <!-- ============ LEFT: the set lives on the Prep screen now (Larry, Sep 24); this pane is kept
+       hidden because the record's Next / Prev and the category counts still come from it ============ -->
+  <div class="pane left hide">
     <div class="head">
       <div class="row between">
         <div class="title">Renewals <span class="pill" id="ver">v<?= e(rnw_version()) ?></span></div>
@@ -44,6 +45,18 @@ $me = require_login();
   <!-- ============ CENTER: record ============ -->
   <div class="pane center">
     <div id="rec" class="pane" style="flex:1;min-height:0">
+      <div class="row" style="padding:8px 24px 0;gap:8px;flex-wrap:wrap;background:#fff">
+        <span class="title" style="font-size:15px">Renewals <span class="pill">v<?= e(rnw_version()) ?></span></span>
+        <div class="row" style="gap:4px" id="offices2"></div>
+        <span class="muted">·</span>
+        <button class="btn xs" id="c-prev2" aria-label="Previous cycle">&lt;</button>
+        <strong id="c-label2" style="font-size:13px">—</strong>
+        <button class="btn xs" id="c-next2" aria-label="Next cycle">&gt;</button>
+        <span class="muted" style="font-size:11px" id="c-info2"></span>
+        <div class="grow"></div>
+        <span class="muted" style="font-size:11px" id="pos"></span>
+        <a href="prep.php" target="rc-prep" id="lnk-prep2" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep screen</a>
+      </div>
       <div class="rec-head">
         <div class="grow" style="display:flex;flex-direction:column;gap:2px">
           <div class="row" style="gap:10px;flex-wrap:wrap">
@@ -211,12 +224,17 @@ $me = require_login();
     S.board = j; S.queue = j.queue; S.cycle = j.cycle.cycle; LS('renewal.cycle', S.cycle);
     $('c-label').textContent = 'Increase ' + fmt.date(j.cycle.increase) + (j.cycle.finalized ? ' · FINAL' : '');
     $('lnk-prep').href = 'prep.php?cycle=' + encodeURIComponent(S.cycle);
+    $('c-label2').textContent = $('c-label').textContent; $('lnk-prep2').href = $('lnk-prep').href;
+    $('c-info2').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters by ${fmt.dateShort(j.cycle.letters_by)} · ${j.totals.count} in the set · ${j.totals.filled} filled · +${fmt.money(j.totals.increase)}/mo`;
+    $('c-prev2').onclick = () => { S.cycle = j.cycle.prev; S.sel = null; loadBoard(); }; $('c-next2').onclick = () => { S.cycle = j.cycle.next; S.sel = null; loadBoard(); };
+
     $('c-info').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters by ${fmt.dateShort(j.cycle.letters_by)} · ${j.totals.filled}/${j.totals.count} filled · +${fmt.money(j.totals.increase)}/mo`;
     $('c-prev').onclick = () => { S.cycle = j.cycle.prev; S.sel = null; loadBoard(); }; $('c-next').onclick = () => { S.cycle = j.cycle.next; S.sel = null; loadBoard(); };
     display.apply(j.display.on, j.display.scale);
     $('offices').innerHTML = (j.offices.length ? j.offices : [{ code: j.office.code, label: j.office.label }])
       .map(o => `<button class="btn sm ${o.code === j.office.code ? 'on' : ''}" data-office="${fmt.esc(o.code)}" aria-label="${fmt.esc(o.label)}">${fmt.esc(o.code)}</button>`).join('');
     $('offices').querySelectorAll('button').forEach(b => b.onclick = () => loadBoard(b.dataset.office));
+    $('offices2').innerHTML = $('offices').innerHTML; $('offices2').querySelectorAll('button').forEach(b => b.onclick = () => loadBoard(b.dataset.office));
     const cats = [['all', 'All']].concat(Object.keys(j.cats).map(k => [k, k + ' ' + j.cats[k]]));
     $('cats').innerHTML = cats.map(([k, l]) => `<button class="btn xs ${S.cat === k ? 'on' : ''}" data-cat="${k}">${fmt.esc(l)}${j.counts[k] ? ' · ' + j.counts[k] : ''}</button>`).join('');
     $('cats').querySelectorAll('button').forEach(b => b.onclick = () => { S.cat = b.dataset.cat; loadBoard(); });
@@ -248,6 +266,8 @@ $me = require_login();
       </button>`;
     }).join('') || '<div class="muted" style="padding:24px 16px;text-align:center">Nothing in the queue for this filter.</div>';
     $('queue').querySelectorAll('.qrow').forEach(b => b.onclick = () => pick(b.dataset.id));
+    const i = S.filtered.findIndex(r => r.lease_id === S.sel);
+    $('pos').textContent = S.filtered.length ? ((i >= 0 ? (i + 1) + ' of ' : '') + S.filtered.length + ' in the set · Next / ← →') : 'set is empty · open the Prep screen';
   }
   $('search').addEventListener('input', () => { S.q = $('search').value; renderQueue(); });
 
