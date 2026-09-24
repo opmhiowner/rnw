@@ -176,3 +176,19 @@ profile. This replaces the handoff's BroadcastChannel-only design.
 **Not done / parked:** printing (2 trays), bill creation (out of scope), photo upload (files stay on the
 drive), LV report-only offices have no Rentvine write-back (the plan says so instead of failing silently
 — Sync Center marks them `af`).
+
+## v0.2 — the set is per increase month (Sep 23–24, 2026, from FileMaker 1.PREP)
+Larry's prep-screen screenshot changed the model. **Cycle = increase month.** Run in month M for the
+1st of M+2; letters by the 11th of M (45-day notice); upload in M+1. **Pull rule:** FIXED = lease end in
+[1st of M+1, 1st of M+2]; MTM (end 2049) = last increase 24 ≤ months < 25 before the increase date
+(anchor: own posted history › Last Renewal Date › eligibility−1y › move-in); ADDON by hand; overdue MTM
+(≥ 25 mo) is a report, not the set. New rent starts blank (unfilled). ASD = new deposit − deposit.
+Per-property notes (`renewal_property`: special, VAOAO, colour) persist across cycles. New window
+`/rnw/prep` = the FileMaker list with its columns, filters, totals, add-by-hand, overdue report, batch
+upload (`cycle_post`), Letters sent, Make permanent (`renewal_cycles.finalized_at`, rows read-only).
+Main gets a cycle selector and follows Prep clicks through the server link. Decisions are saved per
+lease per cycle and retrievable for the upload month and as history. Fixed leases longer than a year
+wait for their own end date. `-2 DUEDATE>1` is reserved.
+**Open:** Rentvine's Last Renewal Date custom field is not mirrored by Sync Center (no custom-fields
+feed), so the MTM anchor for leases never posted through this app falls back to the eligibility date
+minus a year, then move-in. Ask Sync Center for a custom-fields feed, or fetch live per lease.

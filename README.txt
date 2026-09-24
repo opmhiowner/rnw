@@ -69,26 +69,71 @@ FIRST RUN
      folder in photo-agent.ps1 once per PC.
 
 
-THE QUEUE (what used to be SORT.CALC)
-  Categories are computed from Sync Center every load, never stored;
-  a row can be pinned to a category by hand (Evaluation card).
-    -3 ADDON        decided (pau / posted) this month
-    -2 DUEDATE>1    fixed lease ended more than a day ago, no decision
-    -1 RNW SPEC     "RNW spec" ticked on the record
-     1 MOVING OUT   move-out or notice date on the lease
-     2 NEW LEASE    move-in within 12 months and lease end inside the window
+THE SET (FileMaker 1.PREP) - v0.2
+  Everything is per CYCLE = the increase month. Run in month M for
+  the increase on the 1st of M+2 ("pull December in October"):
+  letters out by the 11th of M (45-day notice, HRS 521-21), upload
+  to Rentvine in M+1, rent changes on the 1st of M+2.
+
+  THE PULL RULE, every month, for increase date D:
+    FIXED   lease end between the 1st of the month before D and D
+            itself, inclusive (for 12/01: lease ends 11/01..12/01).
+            A fixed lease longer than a year waits for its own end.
+    MTM     end date 9/9/2049 (or isMonthToMonth) and the last
+            increase 24 months before D - but less than 25, so each
+            lease is pulled in exactly one cycle. No increase on
+            file -> the move-in date is the anchor ("2 years+ since
+            move in"). The anchor, best source first: this app's own
+            posted renewals, Rentvine's Last Renewal Date custom
+            field (when mirrored), Rentvine's increaseEligibilityDate
+            minus a year, move-in.
+    ADDON   pulled by hand on the Prep window (search, Add) - tagged
+            "added by hand <date>". FileMaker's ADD.<yyyy.mm>.
+    OVERDUE MTM 25+ months since the last increase is NOT in the set:
+            it is the ">25 MO report" on the Prep window's right
+            pane, one click to add.
+  Rows already in a cycle stay in it whatever the rule says later.
+  The Prep window (/rnw/prep) is the set on its own screen: the
+  FileMaker columns (date, revisit, pcode, last incr, move in, lease
+  end, new rent, change, tenant, renewal special, owner, deposit,
+  rent, FMO, addon, ASD, due day, %, building/VAOAO, type, remarks),
+  filters ALL / MTM / FIXED / ADDON / Unfilled / Exceptions / Pau /
+  Posted, sortable columns, totals (count, filled, total increase,
+  total ASD), Print list. Click a row and Main jumps to it.
+
+  SAVED AND RETRIEVABLE: each decision is one row per lease per
+  cycle (renewal_queue.cycle = "2026-12"). October's work on the
+  December set is there in November for the upload and forever
+  after as history; Sync Center refreshing the mirror never touches
+  it. The record shows "Past renewals" from earlier cycles.
+
+  CATEGORIES (SORT.CALC, computed, a row can be pinned by hand)
+    -3 ADDON        added by hand
+    -2 DUEDATE>1    (reserved - overdue MTM is the report, not the set)
+    -1 RNW SPEC     "RNW spec" ticked
+     1 MOVING OUT   move-out / notice date, or marked to vacate
+     2 NEW LEASE    fixed lease ending within 13 months of move-in
      3 REVISIT      Revisit ticked
      4 OA           OA ticked (owner approval)
      5 NO INCREASE  "No increase" ticked
-     7 FIXED        fixed lease ending inside the review window (90 d)
-     8 MTM          month-to-month, 24+ months since the last renewal
-  Sorted by category, then zip, then property code, then unit.
-  All month counts and the window are Settings.
+     7 FIXED        fixed lease ending in the window
+     8 MTM          month-to-month, 24 months since the last increase
+  Sorted by category, then zip, then pcode ("sort Pcode.Print").
 
-  "Last renewal" = the Rentvine custom field Last Renewal Date when
-  present, else the lease start. That is the anchor for MTM / no
-  increase, and it is what Post to Rentvine stamps.
+  NEW RENT STARTS BLANK ("unfilled", FileMaker BLANK NEWRENT). The
+  step buttons, arrows or typing fill it. ASD = new deposit - current
+  deposit (new deposit defaults to the new rent). "Deposit does not
+  equal rent" shows green on the Prep list, as in FileMaker.
 
+  THE MONTH, in order
+    1. Prep window, pick the cycle (defaults to this run's), review
+       the set, add addons, work the records on Main
+    2. Renewal meeting: Prep on the big screen, Main follows clicks
+    3. Letters (printing parked) by the 11th; "Letters sent" stamps it
+    4. Following month: "Upload this set to Rentvine" - every filled
+       row, four steps each, unfilled skipped, finished steps never
+       repeated; a failed row stops only itself
+    5. "Make permanent (finalize)" - the cycle becomes read-only
 
 THE RECORD (Main, center pane)
   Rent decision   current -> new rent, % increase, step buttons
@@ -108,7 +153,10 @@ THE RECORD (Main, center pane)
                   not in the handoff; adjust ranges_for() in
                   api/board.php if the letters need something else.
   Evaluation      Top / Recom / Bottom free text + the flags.
-  Notes / VAOAO   two text boxes, saved with the record.
+  Notes           "Renewal special" is per PROPERTY and comes back every
+                  cycle (FileMaker SPECIAL WO::Renewal Special); notes and
+                  the short Remarks are per cycle. Building / AOAO and a
+                  colour swatch are per property too.
   Same building   every other active lease on the same property
                   (unit, bed/bath/parking, rent, last renewal, move in).
 

@@ -9,6 +9,7 @@ Options -Indexes
   # pretty routes the launcher uses: /rnw/media  /rnw/comps
   RewriteRule ^media/?$ media.php [L]
   RewriteRule ^comps/?$ comps.php [L]
+  RewriteRule ^prep/?$ prep.php [L]
 </IfModule>
 
 <FilesMatch "^(\.gitignore|\.htaccess|CLAUDE\.md|README.*)$">

@@ -23,7 +23,7 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 3;
+const RNW_REV = 4;
 function rnw_version(): string {
     $r = RNW_REV;
     if ($r < 100) { return '.' . $r; }
@@ -289,6 +289,38 @@ function schema_ensure(): void {
           KEY idx_company (company_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
+    // One row per increase month per office: the "set". Finalized = made permanent
+    // (FileMaker "Make permanent record"); rows in a finalized cycle are read-only.
+    $tables['renewal_cycles'] = "
+        CREATE TABLE IF NOT EXISTS renewal_cycles (
+          company_id INT UNSIGNED NOT NULL DEFAULT 1,
+          office_id INT UNSIGNED NOT NULL DEFAULT 1,
+          cycle VARCHAR(7) NOT NULL,
+          finalized_at DATETIME NULL,
+          finalized_by VARCHAR(64) NULL,
+          letters_at DATETIME NULL,
+          letters_by VARCHAR(64) NULL,
+          notes TEXT NULL,
+          PRIMARY KEY (office_id, cycle),
+          KEY idx_company (company_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
+    // Per property, forever (FileMaker "Renewal Special", VAOAO / building, colour):
+    // comes back every cycle the property is in.
+    $tables['renewal_property'] = "
+        CREATE TABLE IF NOT EXISTS renewal_property (
+          company_id INT UNSIGNED NOT NULL DEFAULT 1,
+          office_id INT UNSIGNED NOT NULL DEFAULT 1,
+          pcode VARCHAR(40) NOT NULL,
+          special TEXT NULL,
+          vaoao VARCHAR(160) NULL,
+          color VARCHAR(16) NULL,
+          updated_by VARCHAR(64) NULL,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+          PRIMARY KEY (office_id, pcode),
+          KEY idx_company (company_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+
     // Craigslist results per unit, kept 7 days.
     $tables['renewal_comps_cache'] = "
         CREATE TABLE IF NOT EXISTS renewal_comps_cache (
@@ -307,6 +339,8 @@ function schema_ensure(): void {
     // columns added after v0.1
     $addcols = [];
     $addcols['renewal_queue']['rv_day_due']      = "ALTER TABLE renewal_queue ADD COLUMN rv_day_due SMALLINT NULL AFTER rv_old_charge_id";
+    $addcols['renewal_queue']['addon']           = "ALTER TABLE renewal_queue ADD COLUMN addon TINYINT(1) NOT NULL DEFAULT 0 AFTER special";
+    $addcols['renewal_queue']['remarks']         = "ALTER TABLE renewal_queue ADD COLUMN remarks VARCHAR(255) NULL AFTER notes";
     foreach ($addcols as $table => $cols) {
         $have = [];
         foreach ($pdo->query("SHOW COLUMNS FROM `$table`") as $r) { $have[$r['Field']] = true; }
@@ -341,10 +375,11 @@ function setting_put(string $key, ?string $val): void {
 // The knobs the queue rules and the rent card use, with defaults.
 function rnw_defaults(): array {
     return [
-        'review_window_days' => '90',    // lease end inside this = in the queue
-        'mtm_months'         => '24',    // "Renew MTM every 2 years"
-        'no_increase_months' => '12',    // no increase for this long = in the queue
-        'first_year_months'  => '12',    // NEW LEASE = move-in inside this
+        'cycle_offset'       => '2',     // run in month M for the increase on the 1st of M+2 ("pull December in October")
+        'letters_day'        => '11',    // letters out by the 11th of the run month (45-day notice, HRS 521-21)
+        'mtm_months'         => '24',    // MTM: last increase this many months before the increase date ("every 2 years")
+        'mtm_months_max'     => '25',    // ... and less than this; beyond it = overdue report, added by hand
+        'first_year_months'  => '13',    // NEW LEASE = fixed lease ending within this of move-in (first renewal)
         'rent_step_dollars'  => '25',    // < > arrows
         'steps'              => '2,4,6,8',
         'deposit_rule'       => 'match_rent',   // new deposit = new rent
@@ -496,4 +531,26 @@ function body_json(): array {
     return is_array($d) ? $d : [];
 }
 function money(?float $v): string { return $v === null ? '' : number_format($v, 0); }
-function cycle_now(): string { return date('Y-m'); }
+// ---------- cycles: the increase month. Run in month M for the 1st of M+offset.
+function cycle_default(): string { return date('Y-m', strtotime(date('Y-m-01') . ' +' . (int)knob('cycle_offset') . ' months')); }
+function cycle_now(): string { return cycle_default(); }
+function cycle_valid(string $c): bool { return (bool)preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $c); }
+function cycle_info(string $cycle): array {
+    $inc = $cycle . '-01';
+    $run = date('Y-m-01', strtotime($inc . ' -' . (int)knob('cycle_offset') . ' months'));
+    $winStart = date('Y-m-01', strtotime($inc . ' -1 month'));
+    return [
+        'cycle' => $cycle, 'increase' => $inc, 'label' => date('F Y', strtotime($inc)),
+        'run_month' => substr($run, 0, 7),
+        'letters_by' => date('Y-m-d', strtotime($run . ' +' . ((int)knob('letters_day') - 1) . ' days')),
+        'upload_month' => date('F', strtotime($inc . ' -1 month')),
+        'fixed_from' => $winStart, 'fixed_to' => $inc,
+        'prev' => date('Y-m', strtotime($inc . ' -1 month')), 'next' => date('Y-m', strtotime($inc . ' +1 month')),
+    ];
+}
+function cycle_row(string $cycle): array {
+    $st = db()->prepare("SELECT * FROM renewal_cycles WHERE office_id = ? AND cycle = ?");
+    $st->execute([oid(), $cycle]);
+    return $st->fetch() ?: ['cycle' => $cycle, 'finalized_at' => null, 'finalized_by' => null, 'letters_at' => null, 'letters_by' => null, 'notes' => null];
+}
+function cycle_finalized(string $cycle): bool { return !empty(cycle_row($cycle)['finalized_at']); }

@@ -136,7 +136,7 @@ $me = require_login();
   };
   $('btn-attach').onclick = async () => {
     if (!S.cur) return;
-    const j = await api('comps_pin', { lease_id: S.cur.record_id, pinned: S.pinned });
+    const j = await api('comps_pin', { lease_id: S.cur.record_id, cycle: S.cur.cycle, pinned: S.pinned });
     if (!j.ok) { toast(j.error, true); return; }
     toast('Attached ' + S.pinned.length + ' comps · median ' + fmt.money(j.median));
     if (bus.ch) bus.ch.postMessage({ record_id: S.cur.record_id, pinned: S.pinned, median: j.median, at: Date.now(), from: 'comps' });

@@ -26,7 +26,7 @@
     ch: ('BroadcastChannel' in window) ? new BroadcastChannel('renewal') : null,
     lastSent: '',
     publish(msg) {
-      msg.at = Date.now();
+      msg.at = Date.now(); msg.from = msg.from || 'main';
       LS('renewal.current', JSON.stringify(msg));
       if (this.ch) this.ch.postMessage(msg);
       const key = JSON.stringify([msg.record_id, msg.rent_proposal, msg.pct]);
@@ -40,7 +40,7 @@
         const tick = async () => {
           const j = await api('current_get', {});
           if (j.ok && j.current && j.current.record_id) {
-            const key = JSON.stringify([j.current.record_id, j.current.rent_proposal, j.current.pct, j.row_updated_at]);
+            const key = JSON.stringify([j.current.record_id, j.current.cycle, j.current.rent_proposal, j.current.pct, j.row_updated_at, j.current.at]);
             if (key !== seen) { seen = key; j.current.pinned = j.pinned || j.current.pinned; j.current.median = j.comp_median; j.current.via = 'server'; fn(j.current); }
           }
         };
@@ -79,6 +79,7 @@
   const fmt = {
     money(v) { if (v === null || v === undefined || v === '' || isNaN(v)) return '—'; return '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }); },
     money2(v) { if (v === null || v === undefined || v === '' || isNaN(v)) return '—'; return '$' + Number(v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); },
+    cycle(c) { if (!c) return '—'; const [y, m] = c.split('-'); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m) - 1] + ' ' + y; },
     date(d) { if (!d) return '—'; const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[2] + '/' + m[3] + '/' + m[1]) : d; },
     dateShort(d) { if (!d) return '—'; const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (m[2] + '/' + m[3]) : d; },
     pct(v) { if (v === null || v === undefined || isNaN(v)) return '—'; return Number(v).toFixed(1) + '%'; },

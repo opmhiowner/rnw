@@ -25,6 +25,14 @@ $me = require_login();
         <div class="title">Renewals <span class="pill" id="ver">v<?= e(rnw_version()) ?></span></div>
         <div class="row" style="gap:4px" id="offices"></div>
       </div>
+      <div class="row" style="gap:6px">
+        <button class="btn xs" id="c-prev" aria-label="Previous cycle">&lt;</button>
+        <strong id="c-label" style="font-size:13px">—</strong>
+        <button class="btn xs" id="c-next" aria-label="Next cycle">&gt;</button>
+        <div class="grow"></div>
+        <a href="prep.php" target="rc-prep" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep window</a>
+      </div>
+      <div class="muted" style="font-size:11px" id="c-info"></div>
       <input type="search" id="search" class="in" placeholder="Search tenant, property, ID…" aria-label="Search renewals">
       <div class="chips" id="cats"></div>
     </div>
@@ -93,6 +101,7 @@ $me = require_login();
           <div style="display:flex;flex-direction:column;gap:18px">
             <div class="card eval">
               <div class="row between"><h3>Evaluation</h3><span class="muted" id="last-renewal"></span></div>
+              <div class="row" style="gap:6px"><input class="in sm" id="f-prop-vaoao" placeholder="Building / AOAO (e.g. Royal Kuhio AOAO)"><input class="in sm" id="f-prop-color" type="color" title="colour on the Prep list" style="width:44px;padding:2px"></div>
               <div class="grid3" style="gap:8px">
                 <label class="fld">Top<input class="in sm" id="f-eval-top"></label>
                 <label class="fld">Recom<input class="in sm" id="f-eval-recom"></label>
@@ -114,8 +123,11 @@ $me = require_login();
         </div>
 
         <div class="grid2">
-          <label class="fld notes"><span class="label">Renewal notes</span><textarea class="in" id="f-notes" placeholder="Notes for this renewal…"></textarea></label>
-          <label class="fld vaoao"><span class="label">Owner / VAOAO alerts</span><textarea class="in" id="f-vaoao" placeholder="Owner instructions, VAOAO, special handling…"></textarea></label>
+          <label class="fld vaoao"><span class="label">Renewal special · this property, every cycle</span><textarea class="in" id="f-prop-special" placeholder="e.g. Unit allows a small pet. Call owner before sending renewal."></textarea></label>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <label class="fld notes"><span class="label">Notes · this cycle</span><textarea class="in" id="f-notes" placeholder="Notes for this renewal…" style="height:38px"></textarea></label>
+            <label class="fld"><span class="label">Remarks (list column)</span><input class="in sm" id="f-remarks" placeholder="short remark shown on the Prep list"></label>
+          </div>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -144,6 +156,10 @@ $me = require_login();
         <h3>Rentvine</h3>
         <div style="font-size:12px;color:var(--ink2)" id="rv-state">Not posted.</div>
         <div class="row"><button class="btn sm" id="btn-rv-plan">Preview the 4 steps</button><button class="btn sm" id="btn-events">Activity</button></div>
+      </div>
+      <div class="card white">
+        <h3>Past renewals</h3>
+        <div id="past" style="font-size:12px;display:flex;flex-direction:column;gap:3px"></div>
       </div>
       <div class="card white">
         <h3>Last SEV</h3>
@@ -184,13 +200,17 @@ $me = require_login();
 (() => {
   const { api, bus, display, fmt, toast, LS } = RC;
   const $ = (id) => document.getElementById(id);
-  const S = { board: null, queue: [], filtered: [], cat: 'all', q: '', sel: null, rec: null, dirty: false, saving: false, alive: { media: 0, comps: 0 } };
+  const S = { board: null, queue: [], filtered: [], cat: 'all', q: '', sel: null, rec: null, dirty: false, saving: false, alive: { media: 0, comps: 0 }, cycle: LS('renewal.cycle') || '', lastPick: 0 };
+  const C = () => ({ cycle: S.cycle });
 
   // ---------- board / queue
   async function loadBoard(office) {
-    const j = await api('board', office ? { office } : {});
+    const j = await api('board', Object.assign(office ? { office } : {}, S.cycle ? { cycle: S.cycle } : {}));
     if (!j.ok) { toast(j.error, true); return; }
-    S.board = j; S.queue = j.queue;
+    S.board = j; S.queue = j.queue; S.cycle = j.cycle.cycle; LS('renewal.cycle', S.cycle);
+    $('c-label').textContent = 'Increase ' + fmt.date(j.cycle.increase) + (j.cycle.finalized ? ' · FINAL' : '');
+    $('c-info').textContent = `run ${fmt.cycle(j.cycle.run_month)} · letters by ${fmt.dateShort(j.cycle.letters_by)} · ${j.totals.filled}/${j.totals.count} filled · +${fmt.money(j.totals.increase)}/mo`;
+    $('c-prev').onclick = () => { S.cycle = j.cycle.prev; S.sel = null; loadBoard(); }; $('c-next').onclick = () => { S.cycle = j.cycle.next; S.sel = null; loadBoard(); };
     display.apply(j.display.on, j.display.scale);
     $('offices').innerHTML = (j.offices.length ? j.offices : [{ code: j.office.code, label: j.office.label }])
       .map(o => `<button class="btn sm ${o.code === j.office.code ? 'on' : ''}" data-office="${fmt.esc(o.code)}" aria-label="${fmt.esc(o.label)}">${fmt.esc(o.code)}</button>`).join('');
@@ -211,16 +231,18 @@ $me = require_login();
     S.filtered = S.queue.filter(r => (S.cat === 'all' || String(r.cat) === S.cat)
       && (!q || [r.tenant, r.property, r.unit, r.pcode, r.lease_id, r.address].join(' ').toLowerCase().includes(q)));
     $('qlabel').textContent = (S.cat === 'all' ? 'All categories' : 'Filtered') + ' · zip › pcode';
-    $('qcount').textContent = S.filtered.length + ' in queue · sorted by category';
+    $('qcount').textContent = S.filtered.length + ' in the set · category › zip › pcode';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     $('queue').innerHTML = S.filtered.map(r => {
-      const due = r.mtm ? 'MTM' : (r.days === null ? '—' : (r.days < 0 ? Math.abs(r.days) + ' d over' : r.days + ' d'));
-      const dueColor = r.days !== null && r.days <= 14 ? 'var(--red)' : (r.days !== null && r.days <= 45 ? 'var(--warn)' : 'var(--muted)');
+      const days = r.end ? Math.round((new Date(r.end + 'T00:00:00') - today) / 86400000) : null;
+      const due = r.mtm ? 'MTM' : (days === null ? '—' : (days < 0 ? Math.abs(days) + ' d over' : days + ' d'));
+      const dueColor = days !== null && days <= 14 ? 'var(--red)' : (days !== null && days <= 45 ? 'var(--warn)' : 'var(--muted)');
       return `<button class="qrow ${r.lease_id === S.sel ? 'on' : ''}" data-id="${fmt.esc(r.lease_id)}">
         <div class="row between"><span class="t">${fmt.esc(r.tenant || '(no tenant)')}</span><span class="due" style="color:${dueColor}">${due}</span></div>
         <div class="p">${fmt.esc(r.property)}${r.unit ? ' #' + fmt.esc(r.unit) : ''}</div>
         <div class="row" style="gap:6px"><span class="tag c${r.cat}">${fmt.esc(r.cat_label)}</span>
           ${r.status ? `<span class="tag ${r.status}">${r.status}</span>` : ''}
-          <span class="muted" style="font-size:11px">${r.mtm ? 'MTM' : 'Lease end ' + fmt.dateShort(r.end)}${r.pct !== null && r.pct !== undefined ? ' · ' + fmt.pct(r.pct) : ''}</span></div>
+          <span class="muted" style="font-size:11px">${r.mtm ? 'MTM' : 'Lease end ' + fmt.dateShort(r.end)}${r.unfilled ? ' · <span style="color:var(--warn);font-weight:700">unfilled</span>' : ' · ' + fmt.money(r.new_rent) + ' ' + fmt.pct(r.pct)}</span></div>
       </button>`;
     }).join('') || '<div class="muted" style="padding:24px 16px;text-align:center">Nothing in the queue for this filter.</div>';
     $('queue').querySelectorAll('.qrow').forEach(b => b.onclick = () => pick(b.dataset.id));
@@ -230,9 +252,9 @@ $me = require_login();
   // ---------- record
   async function pick(id) {
     if (S.dirty && S.sel && S.sel !== id) { await save(true); }
-    S.sel = id;
+    S.sel = id; S.lastPick = Date.now();
     renderQueue();
-    const j = await api('record', { lease_id: id });
+    const j = await api('record', { lease_id: id, cycle: S.cycle, create: 1 });
     if (!j.ok) { toast(j.error, true); return; }
     S.rec = j; S.dirty = false;
     renderRecord();
@@ -240,7 +262,7 @@ $me = require_login();
   }
   function publish() {
     const L = S.rec.lease, q = S.rec.q;
-    bus.publish({ record_id: L.lease_id, rent_proposal: Number(q.new_rent || L.rent || 0), current_rent: Number(q.current_rent || L.rent || 0),
+    bus.publish({ record_id: L.lease_id, cycle: S.cycle, saved: !!S.justSaved, rent_proposal: Number(q.new_rent || L.rent || 0), current_rent: Number(q.current_rent || L.rent || 0),
       pct: Number(q.pct_inc || 0), tenant: L.tenant, property: L.property, unit: L.unit, pcode: L.pcode, address: L.address,
       zip: L.zip, bed: L.bed, bath: L.bath, sqft: L.sqft, parking: L.parking, city: L.city, pinned: q.pinned_comps || [] });
   }
@@ -249,28 +271,34 @@ $me = require_login();
     const L = S.rec.lease, q = S.rec.q, R = S.rec.ranges;
     $('h-prop').textContent = (L.property || L.address || 'Lease ' + L.lease_id) + (L.unit ? ' #' + L.unit : '');
     $('h-pcode').textContent = L.pcode || L.lease_id; $('h-pcode').title = L.code || '';
-    $('h-cat').textContent = S.rec.cat_label; $('h-cat').className = 'tag lg c' + S.rec.cat; $('h-cat').title = S.rec.reason;
+    $('h-cat').textContent = S.rec.cat_label; $('h-cat').className = 'tag lg ' + (S.rec.cat === null ? '' : 'c' + S.rec.cat); $('h-cat').title = S.rec.reason;
     $('h-ptype').textContent = L.ptype || ''; $('h-ptype').classList.toggle('hide', !L.ptype);
     $('h-status').textContent = q.status === 'open' ? '' : q.status; $('h-status').className = 'tag lg ' + q.status; $('h-status').classList.toggle('hide', q.status === 'open');
     $('h-sub').innerHTML = `Owner <strong>${fmt.esc(L.owner || '—')}</strong> &nbsp;·&nbsp; Tenant <strong>${fmt.esc(L.tenant || '—')}</strong> &nbsp;·&nbsp; ${fmt.esc(L.address || '')}${L.zip && !(L.address || '').includes(L.zip) ? ' ' + fmt.esc(L.zip) : ''}`;
     $('mtm-note').textContent = L.mtm ? 'Renew MTM every 2 years' : '';
     $('firstyr').textContent = (S.rec.cat === 2) ? '(blue = 1st yr)' : '';
     $('cur-rent').textContent = fmt.money(q.current_rent);
-    $('f-new-rent').value = q.new_rent !== null ? Number(q.new_rent).toFixed(0) : '';
+    $('f-new-rent').value = q.new_rent !== null ? Number(q.new_rent).toFixed(0) : ''; $('f-new-rent').placeholder = q.new_rent === null ? 'unfilled' : '';
     $('f-increase-date').value = q.increase_date || '';
     $('f-cur-dep').value = q.current_deposit !== null ? Number(q.current_deposit).toFixed(0) : '';
     $('f-new-dep').value = q.new_deposit !== null ? Number(q.new_deposit).toFixed(0) : '';
     $('f-range-top').value = R.auto ? '' : Number(R.top).toFixed(0); $('f-range-top').placeholder = Number(R.top).toFixed(0);
     $('f-range-bottom').value = R.auto ? '' : Number(R.bottom).toFixed(0); $('f-range-bottom').placeholder = Number(R.bottom).toFixed(0);
     $('r-basis').textContent = (R.auto ? 'auto from ' + R.basis : 'set by hand') + ' · edit top / bottom to override';
-    ['eval_top', 'eval_recom', 'eval_bottom', 'notes', 'vaoao'].forEach(k => $('f-' + k.replace('_', '-')).value = q[k] || '');
+    ['eval_top', 'eval_recom', 'eval_bottom', 'notes', 'remarks'].forEach(k => $('f-' + k.replace('_', '-')).value = q[k] || '');
+    const P = S.rec.property || {};
+    $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-color').value = P.color || '#ffffff';
+    $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle).map(p => `<div class="row between"><span>${fmt.cycle(p.cycle)} <span class="tag ${p.status}">${p.status}</span></span><span class="mono">${fmt.money(p.current_rent)} → ${fmt.money(p.new_rent)} ${p.pct_inc !== null ? '(' + fmt.pct(p.pct_inc) + ')' : ''}</span></div>`).join('') || '<span class="muted">none in this app yet</span>';
+    const fin = !!S.rec.finalized;
+    ['btn-save', 'btn-pau', 'btn-prep'].forEach(id => $(id).disabled = fin);
+    if (fin) $('btn-save').textContent = 'Finalized';
     ['revisit', 'special', 'oa', 'no_increase'].forEach(k => $('f-' + k.replace('_', '-')).checked = !!Number(q[k]));
     $('f-cat-override').value = q.category_override === null ? '' : String(q.category_override);
-    $('last-renewal').textContent = L.last_renewal ? 'Last renewal ' + fmt.date(L.last_renewal) : (L.last_increase ? 'Last increase ' + fmt.date(L.last_increase) : 'No renewal date on file');
+    const A = S.rec.anchor || {}; $('last-renewal').textContent = A.date ? 'Last increase ' + fmt.date(A.date) + ' (' + A.source + ')' : 'No increase date on file';
     const yrs = L.move_in ? ((Date.now() - new Date(L.move_in)) / 31557600000).toFixed(1) : '—';
     $('lease-grid').innerHTML = [['Move in', fmt.date(L.move_in)], ['Lease end', L.mtm ? (L.end ? fmt.date(L.end) + ' (MTM)' : 'MTM') : fmt.date(L.end)], ['Lease yrs', yrs],
       ['Type', L.mtm ? 'Month-to-month' : 'Fixed'], ['Bed / bath', (L.bed ?? '—') + ' / ' + (L.bath ?? '—')], ['Sq ft · parking', (L.sqft ?? '—') + ' · ' + (L.parking || '—')],
-      ['Next rent', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Increase eligible (Rentvine)', fmt.date(L.next_increase)],
+      ['Rent starts', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Increase eligible (Rentvine)', fmt.date(L.next_increase)],
       ['Rentvine lease', L.lease_id + (L.code ? ' · ' + L.code : '') + (L.rent_source ? ' · rent from ' + L.rent_source : '')]]
       .map(([k, v]) => `<div class="fld"><span>${k}</span><strong>${fmt.esc(v)}</strong></div>`).join('');
     $('hist-n').textContent = S.rec.history.length + ' other unit' + (S.rec.history.length === 1 ? '' : 's');
@@ -301,34 +329,36 @@ $me = require_login();
 
   // live math: pct, SDR, ranges - mirrors the server
   function recalc(dirty) {
-    const q = S.rec.q, cur = Number(q.current_rent || 0), nr = Number($('f-new-rent').value || 0);
-    const pct = cur ? ((nr - cur) / cur) * 100 : 0;
-    $('pct').textContent = fmt.pct(pct); $('pct').className = 'money ' + (pct > 0 ? 'green' : (pct < 0 ? 'red' : ''));
+    const q = S.rec.q, cur = Number(q.current_rent || 0), raw = $('f-new-rent').value.trim(), nr = raw === '' ? null : Number(raw);
+    const pct = (nr !== null && cur) ? ((nr - cur) / cur) * 100 : null;
+    $('pct').textContent = pct === null ? '—' : fmt.pct(pct); $('pct').className = 'money ' + (pct > 0 ? 'green' : (pct < 0 ? 'red' : ''));
     const curDep = $('f-cur-dep').value === '' ? null : Number($('f-cur-dep').value);
-    if (dirty && !S.depTouched && S.board && $('f-new-dep').dataset.auto !== 'off') { $('f-new-dep').value = nr ? Math.round(nr) : ''; }
+    if (dirty && $('f-new-dep').dataset.auto !== 'off') { $('f-new-dep').value = nr !== null ? Math.round(nr) : ''; }
     const newDep = $('f-new-dep').value === '' ? null : Number($('f-new-dep').value);
     const sdr = (newDep !== null && curDep !== null) ? Math.max(0, newDep - curDep) : null;
     $('sdr').textContent = sdr === null ? '—' : '+' + fmt.money(sdr);
     const top = Number($('f-range-top').value || $('f-range-top').placeholder || 0), bot = Number($('f-range-bottom').value || $('f-range-bottom').placeholder || 0);
     const pos = p => fmt.money(Math.round(bot + (top - bot) * p));
     $('r-base').textContent = pos(.60); $('r-start').textContent = pos(.80); $('r-drop').textContent = pos(.92);
-    $('steps').querySelectorAll('button').forEach(b => b.classList.toggle('on', Math.abs(Number(b.dataset.step) - pct) < 0.05));
+    $('steps').querySelectorAll('button').forEach(b => b.classList.toggle('on', pct !== null && Math.abs(Number(b.dataset.step) - pct) < 0.05));
     if (dirty) { markDirty(); if (S.rec) { S.rec.q.new_rent = nr; S.rec.q.pct_inc = pct; publish(); } }
   }
   function markDirty() { S.dirty = true; $('btn-save').textContent = 'Save •'; }
   $('inc').onclick = () => { $('f-new-rent').value = Math.round(Number($('f-new-rent').value || S.rec.q.current_rent || 0) + S.rec.step_dollars); recalc(true); };
+  ['f-prop-special', 'f-prop-vaoao', 'f-prop-color', 'f-remarks'].forEach(id => $(id).addEventListener('change', markDirty));
   $('dec').onclick = () => { $('f-new-rent').value = Math.max(0, Math.round(Number($('f-new-rent').value || 0) - S.rec.step_dollars)); recalc(true); };
   ['f-new-rent', 'f-cur-dep', 'f-range-top', 'f-range-bottom'].forEach(id => $(id).addEventListener('input', () => recalc(true)));
   $('f-new-dep').addEventListener('input', () => { $('f-new-dep').dataset.auto = 'off'; recalc(true); });
-  ['f-increase-date', 'f-eval-top', 'f-eval-recom', 'f-eval-bottom', 'f-notes', 'f-vaoao', 'f-revisit', 'f-special', 'f-oa', 'f-no-increase', 'f-cat-override']
+  ['f-increase-date', 'f-eval-top', 'f-eval-recom', 'f-eval-bottom', 'f-notes', 'f-revisit', 'f-special', 'f-oa', 'f-no-increase', 'f-cat-override']
     .forEach(id => $(id).addEventListener('change', markDirty));
 
   function collect() {
-    return { lease_id: S.sel, new_rent: $('f-new-rent').value, step_pct: S.rec.q.step_pct, increase_date: $('f-increase-date').value,
+    return { lease_id: S.sel, cycle: S.cycle, new_rent: $('f-new-rent').value, step_pct: S.rec.q.step_pct, increase_date: $('f-increase-date').value,
+      prop_special: $('f-prop-special').value, prop_vaoao: $('f-prop-vaoao').value, prop_color: $('f-prop-color').value === '#ffffff' ? '' : $('f-prop-color').value, remarks: $('f-remarks').value,
       current_deposit: $('f-cur-dep').value, new_deposit: $('f-new-dep').value,
       range_top: $('f-range-top').value, range_bottom: $('f-range-bottom').value,
       eval_top: $('f-eval-top').value, eval_recom: $('f-eval-recom').value, eval_bottom: $('f-eval-bottom').value,
-      notes: $('f-notes').value, vaoao: $('f-vaoao').value,
+      notes: $('f-notes').value,
       revisit: $('f-revisit').checked, special: $('f-special').checked, oa: $('f-oa').checked, no_increase: $('f-no-increase').checked,
       category_override: $('f-cat-override').value };
   }
@@ -339,22 +369,22 @@ $me = require_login();
     S.saving = false;
     if (!j.ok) { toast(j.error, true); return false; }
     S.rec = j; S.dirty = false; $('btn-save').textContent = 'Save'; $('f-new-dep').dataset.auto = '';
-    renderRecord(); publish();
+    renderRecord(); S.justSaved = true; publish(); S.justSaved = false;
     if (!quiet) toast('Saved · ' + fmt.money(j.q.new_rent) + ' (' + fmt.pct(j.q.pct_inc) + ')');
-    const row = S.queue.find(r => r.lease_id === S.sel); if (row) { row.new_rent = j.q.new_rent; row.pct = j.q.pct_inc; row.status = j.q.status; renderQueue(); }
+    const row = S.queue.find(r => r.lease_id === S.sel); if (row) { row.new_rent = j.q.new_rent; row.pct = j.q.pct_inc; row.status = j.q.status; row.unfilled = j.q.new_rent === null; renderQueue(); }
     return true;
   }
   $('btn-save').onclick = () => save(false);
   $('btn-pau').onclick = async () => {
     if (S.dirty) { if (!(await save(true))) return; }
-    const j = await api(S.rec.q.status === 'open' ? 'pau' : 'reopen', { lease_id: S.sel });
+    const j = await api(S.rec.q.status === 'open' ? 'pau' : 'reopen', { lease_id: S.sel, cycle: S.cycle });
     if (!j.ok) { toast(j.error, true); return; }
     toast(S.rec.q.status === 'open' ? 'Pau · out of the queue' : 'Reopened');
     S.rec = j; renderRecord(); await loadBoard();
   };
   $('btn-prep').onclick = async () => {
     if (S.dirty) { if (!(await save(true))) return; }
-    const j = await api('prepped', { lease_id: S.sel });
+    const j = await api('prepped', { lease_id: S.sel, cycle: S.cycle });
     if (!j.ok) { toast(j.error, true); return; }
     S.rec = j; renderRecord(); toast('Stamped as prepped. Printing itself is parked (see README).');
   };
@@ -376,6 +406,7 @@ $me = require_login();
 
   // ---------- linked windows: green dot = heard from it in the last 20 s
   bus.subscribe((m) => {
+    if (m.from === 'prep' && m.record_id && m.record_id !== S.sel) { if (m.cycle && m.cycle !== S.cycle) { S.cycle = m.cycle; loadBoard().then(() => pick(m.record_id)); } else pick(m.record_id); return; }
     if (m.hello === 'media') S.alive.media = Date.now();
     if (m.hello === 'comps') S.alive.comps = Date.now();
     if (m.pinned && m.record_id === S.sel && S.rec) { S.rec.q.pinned_comps = m.pinned; S.rec.q.comp_median = m.median; renderMarket(); }
@@ -385,6 +416,10 @@ $me = require_login();
   setInterval(async () => {
     if (!S.sel || S.dirty) return;
     const j = await api('current_get', {});
+    if (j.ok && j.current && j.current.from === 'prep' && j.current.record_id && (j.current.record_id !== S.sel || j.current.cycle !== S.cycle) && Date.parse(j.current.at) > S.lastPick) {
+      if (j.current.cycle && j.current.cycle !== S.cycle) { S.cycle = j.current.cycle; await loadBoard(); }
+      pick(j.current.record_id); return;
+    }
     if (j.ok && j.current && j.current.record_id === S.sel && j.row_updated_at) {
       if (rowSeen && rowSeen !== j.row_updated_at && S.rec) { S.rec.q.pinned_comps = j.pinned || []; S.rec.q.comp_median = j.comp_median; renderMarket(); }
       rowSeen = j.row_updated_at;
@@ -408,7 +443,7 @@ $me = require_login();
 
   async function rvPlan(confirmMode) {
     if (S.dirty) { if (!(await save(true))) return; }
-    const j = await api('rv_plan', { lease_id: S.sel });
+    const j = await api('rv_plan', { lease_id: S.sel, cycle: S.cycle });
     if (!j.ok) { toast(j.error, true); return; }
     const p = j.plan, q = j.q;
     const steps = p.steps.map(s => `<li class="${s.done ? 'ok' : 'todo'}"><strong>${s.done ? '✓' : '○'} ${fmt.esc(s.label)}</strong>${s.note ? ' <span class="muted">(' + fmt.esc(s.note) + ')</span>' : ''}
@@ -441,7 +476,7 @@ $me = require_login();
     $('m-go').onclick = async () => {
       if (!confirm('Post this renewal to Rentvine now?\n\n' + p.steps.filter(s => !s.done).map(s => '• ' + s.label).join('\n'))) return;
       $('m-go').disabled = true; $('rv-log').innerHTML = '<div class="muted">Posting…</div>';
-      const r = await api('rv_post', { lease_id: S.sel, confirm: 1 });
+      const r = await api('rv_post', { lease_id: S.sel, cycle: S.cycle, confirm: 1 });
       $('rv-log').innerHTML = (r.log || []).map(l => `<div class="${l.ok ? 'ok' : 'fail'}">${l.ok ? '✓' : '✗'} ${l.step}: ${fmt.esc(l.note || l.error || '')}${l.body ? `<pre class="small">${fmt.esc(l.body)}</pre>` : ''}</div>`).join('')
         + (r.ok ? `<div class="strip">${r.done ? 'All steps done - lease is posted.' : 'Steps done so far recorded.'}</div>` : `<div class="strip err">${fmt.esc(r.error || 'Failed')}. Fix the setting or Rentvine side and press Post again - finished steps are skipped.</div>`);
       if (r.lease) { S.rec = r; renderRecord(); loadBoard(); }
@@ -452,14 +487,14 @@ $me = require_login();
   $('btn-post').onclick = () => rvPlan(true);
 
   $('btn-kpi').onclick = async () => {
-    const j = await api('kpi', {});
+    const j = await api('kpi', C());
     if (!j.ok) { toast(j.error, true); return; }
-    const by = j.by_status || {};
-    const row = (s, l) => by[s] ? `<div class="tr"><span>${l}</span><span>${by[s].n}</span><span>${fmt.pct(by[s].avg_pct)}</span><span class="mono">${fmt.money(by[s].added)}/mo</span><span class="mono">${fmt.money(by[s].sdr)}</span></div>` : '';
-    openModal(`<h2>KPI · ${j.cycle}</h2>
-      <div class="tbl"><div class="tr th" style="grid-template-columns:2fr 1fr 1fr 1.4fr 1.4fr"><span>Status</span><span>Leases</span><span>Avg %</span><span>Rent added</span><span>SDR charged</span></div>
-      <div style="display:contents">${['open', 'pau', 'posted'].map(s => row(s, s).replace('class="tr"', 'class="tr" style="grid-template-columns:2fr 1fr 1fr 1.4fr 1.4fr"')).join('') || '<div class="tr">No decisions yet this cycle.</div>'}</div></div>
-      <div><strong>${j.in_queue}</strong> in the queue now: ${Object.entries(j.by_cat).map(([k, v]) => fmt.esc(k) + ' ' + v).join(' · ') || '—'}</div>
+    const t = j.totals;
+    openModal(`<h2>KPI · increase ${fmt.date(j.cycle.increase)}</h2>
+      <div class="kv"><span>In the set</span><strong>${t.count} (fixed ${t.fixed} · MTM ${t.mtm} · addon ${t.addon})</strong><span>Filled</span><strong>${t.filled} of ${t.count}</strong>
+      <span>Average increase</span><strong>${j.avg_pct === null ? '—' : fmt.pct(j.avg_pct)}</strong><span>Total increase</span><strong class="mono">${fmt.money(t.increase)} / month</strong>
+      <span>Total ASD</span><strong class="mono">${fmt.money(t.asd)}</strong><span>Pau / posted</span><strong>${t.pau} / ${t.posted}</strong><span>Exceptions</span><strong>${t.exceptions}</strong></div>
+      <div>${Object.entries(j.by_cat).map(([k, v]) => fmt.esc(k) + ' ' + v).join(' · ') || '—'}</div>
       <div class="row" style="justify-content:flex-end"><button class="btn" onclick="document.getElementById('modal').classList.add('hide')">Close</button></div>`);
   };
   $('btn-events').onclick = async () => {
@@ -483,8 +518,8 @@ $me = require_login();
         <label>Photo agent URL</label><input class="in" id="s-agent" value="${fmt.esc(LS('renewal.agent') || 'http://localhost:8765')}">
       </div>
       <div class="label">Office rules</div>
-      <div class="kv">${f('display_mode', 'Display mode default (1 = on)')}${f('display_scale', 'Display scale')}${f('review_window_days', 'Review window (days before lease end)')}
-        ${f('mtm_months', 'MTM: months since last renewal')}${f('no_increase_months', 'No increase after (months)')}${f('first_year_months', 'First year = move-in within (months)')}
+      <div class="kv">${f('display_mode', 'Display mode default (1 = on)')}${f('display_scale', 'Display scale')}${f('cycle_offset', 'Run month + N = increase month')}${f('letters_day', 'Letters out by day of run month')}
+        ${f('mtm_months', 'MTM: months since last increase (from)')}${f('mtm_months_max', 'MTM: months since last increase (to, exclusive)')}${f('first_year_months', 'NEW LEASE = lease end within N months of move-in')}
         ${f('steps', 'Step buttons (%)')}${f('rent_step_dollars', '< > arrows ($)')}${f('deposit_rule', 'Deposit rule (match_rent | keep)')}
         ${f('cl_site', 'Craigslist site')}${f('cl_area', 'Craigslist area (oah, blank = all)')}${f('cl_miles', 'Craigslist miles')}</div>
       <div class="label">Rentvine (write-back)</div>
