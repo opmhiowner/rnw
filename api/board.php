@@ -111,14 +111,25 @@ function media_row(string $pcode): array {
     $st = db()->prepare("SELECT * FROM renewal_media WHERE office_id = ? AND pcode = ?");
     $st->execute([oid(), $pcode]);
     $r = $st->fetch();
-    return $r ? $r + ['slot_order' => json_decode((string)$r['slot_order'], true) ?: []]
-              : ['pcode' => $pcode, 'cover' => null, 'slot_order' => [], 'description' => ''];
+    $m = $r ? $r + ['slot_order' => json_decode((string)$r['slot_order'], true) ?: []]
+            : ['pcode' => $pcode, 'cover' => null, 'slot_order' => [], 'description' => ''];
+    if (trim((string)$m['description']) === '') {                              // FileMaker's ad copy until one is saved here
+        $fm = fmp_marketing($pcode);
+        $txt = $fm ? trim((string)($fm['adcopy'] ?: $fm['adcopy_plain'] ?: '')) : '';
+        if ($txt !== '') { $m['description'] = $txt; $m['description_source'] = 'filemaker'; }
+    }
+    return $m;
 }
 
 function property_row(string $pcode): array {
     $st = db()->prepare("SELECT * FROM renewal_property WHERE office_id = ? AND pcode = ?");
     $st->execute([oid(), $pcode]);
-    return $st->fetch() ?: ['pcode' => $pcode, 'special' => null, 'vaoao' => null, 'color' => null];
+    $r = $st->fetch() ?: ['pcode' => $pcode, 'special' => null, 'vaoao' => null, 'color' => null];
+    if (($r['vaoao'] ?? null) === null || $r['vaoao'] === '') {           // FileMaker's building name until one is typed here
+        $fp = fmp_property($pcode);
+        if ($fp && !empty($fp['aoao'])) { $r['vaoao'] = $fp['aoao']; $r['vaoao_source'] = 'filemaker'; }
+    }
+    return $r;
 }
 function property_map(): array {
     $st = db()->prepare("SELECT pcode, special, vaoao, color FROM renewal_property WHERE office_id = ?");
@@ -148,7 +159,8 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     [$anchor, $anchorSrc] = increase_anchor($L, $LP[$leaseId] ?? null);
     return ['lease' => lease_out($L), 'q' => $q, 'ranges' => ranges_for($q, $L), 'history' => $hist,
             'media' => media_row($L['pcode'] ?: $L['property_id']), 'property' => property_row($L['pcode']),
-            'fmp' => ['ready' => fmp_ready(), 'fields' => fmp_renewal_fields(), 'row' => fmp_renewal((string)$L['pcode'])],
+            'fmp' => ['ready' => fmp_ready(), 'fields' => fmp_renewal_fields(), 'row' => fmp_renewal((string)$L['pcode']),
+                      'property' => fmp_property((string)$L['pcode']), 'marketing' => fmp_marketing((string)$L['pcode'])],
             'past' => q_history($leaseId),
             'cycle' => cycle_info($cycle), 'finalized' => cycle_finalized($cycle),
             'anchor' => ['date' => $anchor, 'source' => $anchorSrc],
@@ -279,6 +291,8 @@ case 'save': {
                        array_key_exists('prop_special', $in) ? (trim((string)$in['prop_special']) ?: null) : $P['special'],
                        array_key_exists('prop_vaoao', $in) ? (trim((string)$in['prop_vaoao']) ?: null) : $P['vaoao'],
                        array_key_exists('prop_color', $in) ? (trim((string)$in['prop_color']) ?: null) : $P['color'], $me['key']]);
+        // the same building name lives in FileMaker's property file (fmp_properties.aoao): keep it in step
+        if (array_key_exists('prop_vaoao', $in)) { fmp_column_save('fmp_properties', (string)$L['pcode'], 'aoao', trim((string)$in['prop_vaoao'])); }
     }
     log_event((int)$q['id'], 'saved', ['lease_id' => $id, 'detail' => ['cycle' => $cycle, 'new_rent' => $new, 'pct' => $pct, 'sdr' => $sdr, 'increase_date' => $incDate]]);
     json_out(['ok' => true] + record_payload($id, $cycle));
@@ -446,6 +460,7 @@ case 'media_set': {
                    VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON DUPLICATE KEY UPDATE cover = VALUES(cover), slot_order = VALUES(slot_order), description = VALUES(description), updated_by = VALUES(updated_by)")
         ->execute([cid(), oid(), $pcode, $cover, $order, $desc, $me['key']]);
+    if (array_key_exists('description', $in)) { fmp_column_save('fmp_marketing', $pcode, 'f_12_adcopy1_rent_util_online', (string)$in['description']); }   // FileMaker's ad copy follows
     log_event(null, 'media_saved', ['detail' => ['pcode' => $pcode, 'cover' => $cover]]);
     json_out(['ok' => true, 'media' => media_row($pcode)]);
 }

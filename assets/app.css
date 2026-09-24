@@ -31,6 +31,7 @@ button:disabled { opacity:.45; cursor:default; }
 .pane { display:flex; flex-direction:column; min-width:0; min-height:0; }
 .pane.left  { width:300px; flex-shrink:0; background:var(--pane); border-right:1px solid var(--line); }
 .pane.center{ flex:1; background:var(--card); }
+.pane.right { width:400px; flex-shrink:0; }   /* fixed: content (FileMaker card) must not widen it */
 /* display mode eats width: narrower side panes when the record pane would be cramped */
 html[data-display="on"] .pane.left  { width:270px; }
 html[data-display="on"] .pane.right { width:340px; }
@@ -180,3 +181,8 @@ kbd { font-family:var(--mono); font-size:11px; background:var(--field); border:1
 .setstrip tr:hover td { background:#fff; }
 .setstrip tr.on td { background:var(--teal-bg); font-weight:600; }
 .setstrip tr.on td:first-child { box-shadow:inset 4px 0 0 var(--teal); }
+
+/* a long unbroken value (TMK, ad copy) must never push a pane wider than its width */
+.pane { min-width:0; }
+#fmp-prop, #fmp-prop span { overflow-wrap:anywhere; }
+#fmp-fields .in { min-width:0; }

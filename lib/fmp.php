@@ -83,3 +83,38 @@ function fmp_renewal_save(string $pcode, array $fields): array {
     }
     return ['ok' => true, 'changed' => count($set)];
 }
+
+// ---------- fmp_properties: the property file (VAOAO = aoao, class, grade, area, parking, laundry ...)
+function fmp_table_row(string $table, string $pcode): ?array {
+    if ($pcode === '' || !in_array('property_code', fmp_columns($table), true)) { return null; }
+    $st = db()->prepare("SELECT * FROM `$table` WHERE office_id = ? AND LOWER(property_code) = LOWER(?) ORDER BY id DESC LIMIT 1");
+    $st->execute([oid(), $pcode]);
+    $r = $st->fetch();
+    return $r ?: null;
+}
+function fmp_property(string $pcode): ?array {
+    $r = fmp_table_row('fmp_properties', $pcode);
+    if (!$r) { return null; }
+    return ['aoao' => $r['aoao'] ?? null, 'class' => $r['f_9_class'] ?? null, 'grade' => $r['grade_ppty'] ?? null, 'grade_mopm' => $r['grade_mopm'] ?? null,
+            'area' => $r['f_10_area'] ?? null, 'hsa_area' => $r['hsa_area'] ?? null, 'hna_area' => $r['hna_area'] ?? null, 'block' => $r['blockad_location'] ?? null,
+            'bd' => $r['f_11_bd'] ?? null, 'ba' => $r['ba'] ?? null, 'pk' => $r['pk'] ?? null, 'parkingcl' => $r['parkingcl'] ?? null, 'sqft' => $r['sqft'] ?? null,
+            'furn' => $r['furn_p_furn'] ?? null, 'laundry' => $r['laundry'] ?? null, 'ac' => $r['ac_type'] ?? null, 'type' => $r['type'] ?? null,
+            'tmk' => $r['tmk'] ?? null, 'water' => $r['water_bw_split'] ?? null, 'pm' => $r['pminitials'] ?? null, 'resident_manager' => $r['resident_manager'] ?? null,
+            'addendum_terms' => $r['addendum_terms'] ?? null, 'sentinel_lease_flags' => $r['sentinel_lease_flags'] ?? null, 'imported_at' => $r['imported_at'] ?? null];
+}
+function fmp_marketing(string $pcode): ?array {
+    $r = fmp_table_row('fmp_marketing', $pcode);
+    if (!$r) { return null; }
+    return ['adcopy' => $r['f_12_adcopy1_rent_util_online'] ?? null, 'adcopy_plain' => $r['f_12_ad_copy_1'] ?? null, 'comps' => $r['f_12_ad_copy_1_comps'] ?? null,
+            'rent_history' => $r['rent_history'] ?? null, 'rent' => $r['f_13rent'] ?? null, 'utilities' => $r['l_utilities'] ?? null, 'util' => $r['f_14_util'] ?? null,
+            'approval_manager' => $r['f_33_approvalmanager'] ?? null, 'rently_id' => $r['rently_id'] ?? null, 'imported_at' => $r['imported_at'] ?? null];
+}
+// one column of a fmp_ table for a property, written back from Main / Media (no row = nothing to update)
+function fmp_column_save(string $table, string $pcode, string $col, ?string $val): bool {
+    if ($pcode === '' || !in_array($col, fmp_columns($table), true)) { return false; }
+    try {
+        $st = db()->prepare("UPDATE `$table` SET `$col` = ? WHERE office_id = ? AND LOWER(property_code) = LOWER(?)");
+        $st->execute([$val === '' ? null : $val, oid(), $pcode]);
+        return $st->rowCount() >= 0;
+    } catch (Throwable $e) { return false; }
+}

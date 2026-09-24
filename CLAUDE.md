@@ -225,6 +225,11 @@ marketing owners properties renewals tenant_contacts vacancy`, keyed by `propert
 `imported_at`; loaded outside this portfolio). `lib/fmp.php` reads/writes `fmp_renewals` by pcode (columns read live,
 card hides when the table is absent); Main shows "FileMaker renewal record" in the right pane (inspection, grades,
 rec rent, lease yrs, ASD, X box, IA / OA date-dropdown-story, remarks) and saves it with `fmp_save` (inserts the
-row when FileMaker never had one). **Open:** which fmp_ columns hold Renewal Special / VAOAO / RENEWALS.PERM
-history / ad copy (probably `fmp_properties` / `fmp_marketing`) and whether the fmp_ import re-runs (would
-overwrite Main's edits).
+row when FileMaker never had one). Also connected (Sep 24): **VAOAO = `fmp_properties.aoao`** (shown in the Building/AOAO box until one is typed
+here; saving writes both `renewal_property.vaoao` and `fmp_properties.aoao`); **listing description =
+`fmp_marketing.f_12_adcopy1_rent_util_online`** (Media shows it until one is saved here; saving writes both);
+`fmp_marketing.rent_history` and the property file (class, grade, area, HSA/HNA area, bd/ba, pk, sqft, laundry,
+AC, TMK, PM, addendum terms) are read-only lines on the FileMaker card. **Not in any fmp_ table:** the pink
+"Renewal Special" text (pv009c has it in FileMaker, `rnw_remarks` is NULL), Evaluation Top/Recom/Bottom, the
+RENEWALS.PERM per-property history rows - those stay Renewal's own (`renewal_property.special`, decisions).
+**Open:** whether the fmp_ import re-runs (then Main's writes to fmp_ get overwritten; keep Renewal's copy the master).

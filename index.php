@@ -175,6 +175,7 @@ $me = require_login();
       </div>
       <div class="card white hide" id="fmp-card">
         <div class="row between"><h3>FileMaker renewal record</h3><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
+        <div id="fmp-prop" style="font-size:12px;display:flex;flex-direction:column;gap:3px;line-height:1.5"></div>
         <div class="kv" id="fmp-fields" style="font-size:12px"></div>
         <div class="row" style="justify-content:flex-end"><button class="btn sm pri" id="btn-fmp-save">Save FileMaker fields</button></div>
       </div>
@@ -324,7 +325,7 @@ $me = require_login();
     $('r-basis').textContent = (R.auto ? 'auto from ' + R.basis : 'set by hand') + ' · edit top / bottom to override';
     ['eval_top', 'eval_recom', 'eval_bottom', 'notes', 'remarks'].forEach(k => $('f-' + k.replace('_', '-')).value = q[k] || '');
     const P = S.rec.property || {};
-    $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-color').value = P.color || '#ffffff';
+    $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-vaoao').title = P.vaoao_source === 'filemaker' ? 'from FileMaker (fmp_properties.aoao) - saving writes it back there too' : ''; $('f-prop-color').value = P.color || '#ffffff';
     renderFmp();
     $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle).map(p => `<div class="row between"><span>${fmt.cycle(p.cycle)} <span class="tag ${p.status}">${p.status}</span></span><span class="mono">${fmt.money(p.current_rent)} → ${fmt.money(p.new_rent)} ${p.pct_inc !== null ? '(' + fmt.pct(p.pct_inc) + ')' : ''}</span></div>`).join('') || '<span class="muted">none in this app yet</span>';
     const fin = !!S.rec.finalized;
@@ -435,6 +436,13 @@ $me = require_login();
     if (!F.ready) return;
     const row = F.row || {};
     $('fmp-when').textContent = row.imported_at ? 'imported ' + String(row.imported_at).slice(0, 10) : 'no FileMaker row for this pcode yet';
+    const P = F.property, M = F.marketing;
+    const line = (pairs) => pairs.filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '').map(([l, v]) => `<span><span class="muted">${l}</span> ${fmt.esc(String(v))}</span>`).join(' · ');
+    $('fmp-prop').innerHTML = (P ? '<div><strong>Property file</strong> ' + line([['class', P.class && Number(P.class)], ['grade', P.grade], ['mo/pm', P.grade_mopm], ['area', P.area], ['HSA', P.hsa_area], ['HNA', P.hna_area], ['block', P.block],
+        ['bd/ba', P.bd !== null && P.bd !== undefined ? Number(P.bd) + '/' + (P.ba !== null ? Number(P.ba) : '?') : null], ['pk', P.pk], ['sqft', P.sqft && Number(P.sqft)], ['furn', P.furn], ['laundry', P.laundry], ['AC', P.ac], ['water', P.water], ['TMK', P.tmk], ['PM', P.pm], ['RM', P.resident_manager]]) + '</div>' : '')
+      + (P && P.addendum_terms ? `<div><span class="muted">Addendum terms</span> ${fmt.esc(P.addendum_terms)}</div>` : '')
+      + (M ? '<div><strong>Marketing</strong> ' + line([['rent history', M.rent_history], ['ad rent', M.rent && fmt.money(M.rent)], ['util', M.util], ['approval', M.approval_manager], ['Rently', M.rently_id]]) + '</div>' : '')
+      || '<span class="muted">no property / marketing row in FileMaker for this pcode</span>';
     $('fmp-fields').innerHTML = Object.entries(F.fields).map(([k, [label, kind]]) => {
       const v = row[k] === null || row[k] === undefined ? '' : String(row[k]);
       if (kind === 'ro') return v ? `<label>${fmt.esc(label)}</label><span class="muted">${fmt.esc(v)}</span>` : '';

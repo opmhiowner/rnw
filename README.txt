@@ -357,3 +357,13 @@ FILEMAKER DATA ON THE SAME DATABASE (v.6)
   updated in place, or created when FileMaker never had one for
   that pcode. Saving the decision (Enter elsewhere) does not touch
   it. Every save is logged in renewal_events as fmp_save.
+  Also from FileMaker's other files (same rule: shown until you type
+  your own, and what you save is written back to FileMaker's row too):
+    Building / AOAO box     fmp_properties.aoao
+    Media listing text      fmp_marketing ad copy (f_12_adcopy1_rent_util_online)
+  Read-only on the card: the property file (class, grade, area, HSA /
+  HNA area, bd/ba, parking, sqft, laundry, AC, water, TMK, PM, addendum
+  terms) and marketing (rent history, ad rent, utilities).
+  NOT in the imported tables: the pink "Renewal Special" text, the
+  Evaluation boxes and the per-property renewal history rows. Those
+  live in Renewal Center only (renewal_property / renewal_decisions).
