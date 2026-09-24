@@ -206,7 +206,9 @@ $me = require_login();
 (() => {
   const { api, bus, display, fmt, toast, LS } = RC;
   const $ = (id) => document.getElementById(id);
-  const S = { board: null, queue: [], filtered: [], cat: 'all', q: '', sel: null, rec: null, dirty: false, saving: false, alive: { media: 0, comps: 0 }, cycle: LS('renewal.cycle') || '', lastPick: 0 };
+  const URLP = new URLSearchParams(location.search);
+  const S = { board: null, queue: [], filtered: [], cat: 'all', q: '', sel: null, rec: null, dirty: false, saving: false, alive: { media: 0, comps: 0 }, cycle: URLP.get('cycle') || LS('renewal.cycle') || '', lastPick: 0, wantLease: URLP.get('lease') || null };
+  if (URLP.has('lease') || URLP.has('cycle')) history.replaceState(null, '', location.pathname);   // one-shot: reloads follow the set as usual
   const C = () => ({ cycle: S.cycle });
 
   // ---------- board / queue
@@ -234,6 +236,7 @@ $me = require_login();
     const opt = $('f-cat-override');
     if (opt.options.length === 1) { Object.keys(j.cats).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k + ' ' + j.cats[k]; opt.appendChild(o); }); }
     renderQueue();
+    if (S.wantLease) { const id = S.wantLease; S.wantLease = null; pick(id); return; }   // ?lease= from the FileMaker link
     if (!S.sel && S.filtered.length) { pick(S.filtered[0].lease_id); }
     else if (S.sel) { const still = S.queue.find(r => r.lease_id === S.sel); if (!still && S.filtered.length) pick(S.filtered[0].lease_id); }
   }
@@ -520,6 +523,13 @@ $me = require_login();
         ${f('mtm_months', 'MTM: months since last increase (from)')}${f('mtm_months_max', 'MTM: months since last increase (to, exclusive)')}${f('first_year_months', 'NEW LEASE = lease end within N months of move-in')}
         ${f('steps', 'Step buttons (%)')}${f('deposit_rule', 'Deposit rule (match_rent | keep)')}
         ${f('cl_site', 'Craigslist site')}${f('cl_area', 'Craigslist area (oah, blank = all)')}${f('cl_miles', 'Craigslist miles')}</div>
+      <div class="label">FileMaker link (open Renewal Center from a FileMaker button)</div>
+      <div class="kv">
+        <label>Push key for this office ${s.fm_push_key_set ? '<span class="tag" style="background:var(--green-bg);color:var(--green-ink)">set</span>' : '<span class="tag" style="background:#fef3c7;color:#92400e">not set</span>'} · blank keeps it</label>
+        <span class="row" style="gap:6px"><input class="in" data-k="fm_push_key" id="s-fmkey" autocomplete="off" value="" placeholder="unchanged" style="flex:1"><button class="btn sm" type="button" id="s-fmkey-gen">Generate</button></span>
+        <label>Links sign in as this Hub user (blank = the link goes to the Hub login)</label><input class="in" data-k="fm_login_user" value="${fmt.esc(s.fm_login_user || '')}" placeholder="adminhi@oishis.net">
+      </div>
+      <div class="muted" style="font-size:11px">FileMaker: Open URL [ "${location.origin}${location.pathname.replace(/[^/]*$/, '')}open.php?key=" & YourTable::RenewalPushKey & "&lease=" & YourTable::LeaseID ]. Add &win=prep, post, media or comps for the other windows, &cycle=YYYY-MM for an increase month. Same pattern as SEV Center's panel links.</div>
       <div class="label">Rentvine (write-back)</div>
       <div class="strip ${j.rv_source === 'none' ? 'err' : ''}">Credentials in use: ${j.rv_source === 'synccenter' ? 'Sync Center source for this office' : (j.rv_source === 'settings' ? 'this app\'s key' : 'none')} · base ${fmt.esc(j.rv_base_effective || '—')} · key ${fmt.esc(j.rv_key_tail || '—')}</div>
       <div class="kv">${f('rv_base', 'Base URL override (blank = Sync Center\'s)')}
@@ -535,6 +545,7 @@ $me = require_login();
       <div class="muted" style="font-size:11px">Placeholders: {base} {lease_id} {tenant_id} {property_id} {unit_id} {charge_id} {amount} {start_date} {end_date} {date} (ISO) {start_date_us} {end_date_us} {date_us} (MM/DD/YYYY, what Rentvine's UI sends) {rent_account_id} {deposit_account_id} {custom_field_id} {day_due} (from the existing rent charge). <strong>verified</strong> = confirmed against a working Rentvine client (base URL, Basic auth, the reads). <strong>unverified</strong> = not yet confirmed against FileMaker's working calls (as shipped, every call is verified). "Send test" on a record lists the lease's recurring charges and the rent / deposit GL accounts so the ids above can be filled from what Rentvine actually returns.</div>
       <div class="row" style="justify-content:flex-end"><button class="btn" id="m-close">Cancel</button><button class="btn pri" id="m-save">Save settings</button></div>`);
     $('m-close').onclick = closeModal;
+    $('s-fmkey-gen').onclick = () => { const a = new Uint8Array(24); crypto.getRandomValues(a); $('s-fmkey').value = Array.from(a, b => b.toString(16).padStart(2, '0')).join(''); $('s-fmkey').type = 'text'; };
     $('m-save').onclick = async () => {
       const v = $('s-display').value; if (v) display.set(v === 'on'); else { display.reset(); display.apply(s.display_mode === '1', Number(s.display_scale || 1.35)); }
       RC.photoAgent.setUrl($('s-agent').value.trim() || 'http://localhost:8765');

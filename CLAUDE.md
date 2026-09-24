@@ -209,3 +209,9 @@ are: new rent filled, one open rent charge, equal to the decision's current rent
 Rentvine. After: old charge ends the day before, new charge = new rent from the increase date open-ended, exactly
 one rent charge active that day, deposit charge + Last Renewal Date recorded (from this app's record; no read
 endpoint). `rv_status` reports the credentials and whether the deposit GL account id is set.
+
+**Sep 24: open from FileMaker** = SEV Center's pattern, copied from `sev/open.php`. `open.php?key=<office push
+key>[&lease=<id>][&cycle=YYYY-MM][&win=main|prep|post|media|comps]`: per-office settings `fm_push_key`
+(≥ 16 chars, never returned by the API, Generate button in Settings › FileMaker link) and `fm_login_user`
+(the Hub user the link signs the PC in as; blank → Hub login with `next=`). Builds the same `$_SESSION['core']`
+the Hub's login builds, logs `fm_link_login`. Main honours `?lease=&cycle=` once (then strips them from the URL).

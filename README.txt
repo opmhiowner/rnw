@@ -312,3 +312,25 @@ CRAIGSLIST
 NOT IN v0.1
   Printing (parked), bill creation (out of scope), photo upload
   (files stay on the drive), FileMaker anything.
+
+OPEN FROM FILEMAKER (v.6 - the SEV Center pattern)
+  A FileMaker button opens Renewal Center signed in, on the record
+  the button was pressed on. One-time setup, per office:
+    1. Main > Settings > "FileMaker link": Generate a push key, Save.
+       It is the only lock on the door and it names the office, so
+       each office has its own. Keep it in FileMaker, not on paper.
+    2. Same section: "Links sign in as this Hub user" - the Hub
+       account the link signs the PC in as (e.g. adminhi@oishis.net).
+       Blank = the link goes to the Hub login page instead.
+  FileMaker script step:
+    Open URL [ "https://apps.oishis.net/rnw/open.php?key="
+               & YourTable::RenewalPushKey
+               & "&lease=" & YourTable::LeaseID ]
+  Parameters (all optional but key):
+    lease=<Rentvine lease id>   Main lands on that record
+    cycle=YYYY-MM               the increase month to show
+    win=main|prep|post|media|comps   which window (default main)
+  A PC already signed in to the Hub for that office just goes
+  straight to the page; otherwise the link signs it in as the
+  configured user (logged in renewal_events as fm_link_login).
+  A wrong or missing key never signs anyone in.

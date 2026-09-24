@@ -494,16 +494,20 @@ case 'settings_get': {
     $out = [];
     foreach ($keys as $k) { $out[$k] = setting($k, rnw_defaults()[$k] ?? rv_templates_default()[$k] ?? ''); }
     $out['rv_api_key_tail'] = ($k = (string)setting('rv_api_key', '')) !== '' ? '…' . substr($k, -4) : '';
+    $out['fm_push_key_set'] = (string)setting('fm_push_key', '') !== '';
+    $out['fm_login_user'] = (string)setting('fm_login_user', '');
     $c = rv_creds();
     json_out(['ok' => true, 'settings' => $out, 'rv_source' => $c['source'], 'rv_base_effective' => $c['base'], 'rv_key_tail' => $c['key'] !== '' ? '…' . substr($c['key'], -4) : '',
               'defaults' => rnw_defaults() + rv_templates_default(), 'verified' => rv_verified()]);
 }
 case 'settings_set': {
-    $allowed = array_merge(array_keys(rnw_defaults()), array_keys(rv_templates_default()), ['timezone', 'region_label', 'rv_base', 'rv_api_key', 'rv_api_secret', 'rv_auth_style', 'rv_auth_header']);
+    $allowed = array_merge(array_keys(rnw_defaults()), array_keys(rv_templates_default()), ['timezone', 'region_label', 'rv_base', 'rv_api_key', 'rv_api_secret', 'rv_auth_style', 'rv_auth_header', 'fm_push_key', 'fm_login_user']);
     $changed = [];
     foreach ((array)($in['settings'] ?? []) as $k => $v) {
         if (!in_array($k, $allowed, true)) { continue; }
-        if (in_array($k, ['rv_api_key', 'rv_api_secret'], true) && (string)$v === '') { continue; }
+        if (in_array($k, ['rv_api_key', 'rv_api_secret', 'fm_push_key'], true) && (string)$v === '') { continue; }   // blank keeps the secret
+        if ($k === 'fm_push_key' && strlen((string)$v) < 16) { json_out(['ok' => false, 'error' => 'FileMaker push key: at least 16 characters (use Generate).']); }
+        if ($k === 'fm_login_user') { $v = trim((string)$v); }
         setting_put((string)$k, $v === null ? null : (string)$v);
         $changed[] = $k;
     }
