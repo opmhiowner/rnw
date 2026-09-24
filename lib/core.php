@@ -178,6 +178,16 @@ function schema_ensure(): void {
     static $done = false;
     if ($done) { return; }
     $done = true;
+    try {
+        schema_apply();
+    } catch (Throwable $e) {
+        http_response_code(500);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit("Renewal: schema step failed - " . $e->getMessage() . "\n(the tables build themselves on load; this is the SQL the database refused)\n");
+    }
+}
+
+function schema_apply(): void {
     $pdo = db();
 
     $tables = [];
@@ -355,7 +365,13 @@ function schema_ensure(): void {
     $have = [];
     foreach ($pdo->query("SHOW TABLES") as $r) { $have[strtolower((string)reset($r))] = true; }
     if (isset($have['renewal_queue']) && !isset($have['renewal_decisions'])) {
-        $pdo->exec("RENAME TABLE renewal_queue TO renewal_decisions");
+        try {
+            $pdo->exec("RENAME TABLE renewal_queue TO renewal_decisions");
+        } catch (Throwable $e) {
+            // managed MySQL users often lack DROP (which RENAME needs): copy instead, leave the old table
+            $pdo->exec("CREATE TABLE renewal_decisions LIKE renewal_queue");
+            $pdo->exec("INSERT INTO renewal_decisions SELECT * FROM renewal_queue");
+        }
     }
     foreach ($tables as $sql) { $pdo->exec($sql); }
 
