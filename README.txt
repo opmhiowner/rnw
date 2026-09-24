@@ -334,3 +334,7 @@ OPEN FROM FILEMAKER (v.6 - the SEV Center pattern)
   straight to the page; otherwise the link signs it in as the
   configured user (logged in renewal_events as fm_link_login).
   A wrong or missing key never signs anyone in.
+  SAME KEY AS SEV: SEV Center's push key and "sign in as" user for
+  the office are accepted too (read from sev_settings on the same
+  database), so one key in FileMaker opens both apps. Renewal's own
+  settings, when filled in, win.

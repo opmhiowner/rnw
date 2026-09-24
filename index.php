@@ -525,7 +525,7 @@ $me = require_login();
         ${f('cl_site', 'Craigslist site')}${f('cl_area', 'Craigslist area (oah, blank = all)')}${f('cl_miles', 'Craigslist miles')}</div>
       <div class="label">FileMaker link (open Renewal Center from a FileMaker button)</div>
       <div class="kv">
-        <label>Push key for this office ${s.fm_push_key_set ? '<span class="tag" style="background:var(--green-bg);color:var(--green-ink)">set</span>' : '<span class="tag" style="background:#fef3c7;color:#92400e">not set</span>'} · blank keeps it</label>
+        <label>Push key for this office ${s.fm_push_key_set ? '<span class="tag" style="background:var(--green-bg);color:var(--green-ink)">set</span>' : '<span class="tag" style="background:#fef3c7;color:#92400e">not set</span>'} · blank keeps it · blank everywhere = SEV Center's key for this office is used</label>
         <span class="row" style="gap:6px"><input class="in" data-k="fm_push_key" id="s-fmkey" autocomplete="off" value="" placeholder="unchanged" style="flex:1"><button class="btn sm" type="button" id="s-fmkey-gen">Generate</button></span>
         <label>Links sign in as this Hub user (blank = the link goes to the Hub login)</label><input class="in" data-k="fm_login_user" value="${fmt.esc(s.fm_login_user || '')}" placeholder="adminhi@oishis.net">
       </div>
