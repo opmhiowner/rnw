@@ -532,7 +532,14 @@ function body_json(): array {
 }
 function money(?float $v): string { return $v === null ? '' : number_format($v, 0); }
 // ---------- cycles: the increase month. Run in month M for the 1st of M+offset.
-function cycle_default(): string { return date('Y-m', strtotime(date('Y-m-01') . ' +' . (int)knob('cycle_offset') . ' months')); }
+// "This run": the increase month whose letters deadline is still ahead. On the 1st..11th
+// of M the run is M (increase M+2); after the 11th, M's letters are out and the run is M+1
+// (increase M+3). Sep 23 -> December, as FileMaker shows.
+function cycle_default(): string {
+    $day = (int)date('j');
+    $runShift = $day > (int)knob('letters_day') ? 1 : 0;
+    return date('Y-m', strtotime(date('Y-m-01') . ' +' . ((int)knob('cycle_offset') + $runShift) . ' months'));
+}
 function cycle_now(): string { return cycle_default(); }
 function cycle_valid(string $c): bool { return (bool)preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $c); }
 function cycle_info(string $cycle): array {
