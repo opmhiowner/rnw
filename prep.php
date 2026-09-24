@@ -150,6 +150,7 @@ $me = require_login();
     });
   }
   function render() {
+    if (!S.board) return;   // a linked-window poll can arrive before the first load
     let rows = filtered();
     if (S.sort) { const k = S.sort; rows = rows.slice().sort((a, b) => ((a[k] ?? '') > (b[k] ?? '') ? 1 : (a[k] ?? '') < (b[k] ?? '') ? -1 : 0) * S.dir); }
     $('thead').innerHTML = COLS.map(([k, l, , cls]) => `<th class="${cls || ''}" data-k="${k}">${l}${S.sort === k ? (S.dir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('');

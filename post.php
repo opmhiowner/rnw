@@ -166,6 +166,7 @@ $me = require_login();
     return `<span class="v ${r.verify_ok ? 'ok' : 'bad'}" title="${fmt.esc(r.verify_note || '')} · ${fmt.esc(r.verified_at || '')}">${r.verify_ok ? '✓' : '✗'}</span>`;
   }
   function render() {
+    if (!S.board) return;
     const c = counts();
     $('filters').innerHTML = FILTERS.map(([k, l]) => `<button class="btn xs ${S.filter === k ? 'on' : ''}" data-f="${k}">${l} · ${c[k]}</button>`).join('');
     $('filters').querySelectorAll('button').forEach(b => b.onclick = () => { S.filter = b.dataset.f; render(); });
