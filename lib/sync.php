@@ -264,16 +264,51 @@ function lease_one(string $id): ?array {
 }
 
 // same-building rent history: other active leases on the same property
+// In Rentvine every unit is its own property, so "same building" is FileMaker's
+// rule: the same VAOAO / AOAO name (fmp_properties.aoao or renewal_property.vaoao),
+// with the same street (address without the unit) as a second net.
+function building_name(string $pcode): string {
+    if ($pcode === '') { return ''; }
+    try {
+        $st = db()->prepare("SELECT vaoao FROM renewal_property WHERE office_id = ? AND pcode = ? AND vaoao IS NOT NULL AND vaoao <> ''");
+        $st->execute([oid(), $pcode]);
+        if (($v = $st->fetchColumn()) !== false) { return (string)$v; }
+        $st = db()->prepare("SELECT aoao FROM fmp_properties WHERE office_id = ? AND LOWER(property_code) = LOWER(?) AND aoao IS NOT NULL AND aoao <> '' LIMIT 1");
+        $st->execute([oid(), $pcode]);
+        if (($v = $st->fetchColumn()) !== false) { return (string)$v; }
+    } catch (Throwable $e) { /* tables not on this server */ }
+    return '';
+}
+function building_pcodes(string $name): array {
+    $name = strtolower(trim($name));
+    if ($name === '') { return []; }
+    $out = [];
+    foreach ([["SELECT property_code AS p FROM fmp_properties WHERE office_id = ? AND LOWER(TRIM(aoao)) = ?"],
+              ["SELECT pcode AS p FROM renewal_property WHERE office_id = ? AND LOWER(TRIM(vaoao)) = ?"]] as [$sql]) {
+        try { $st = db()->prepare($sql); $st->execute([oid(), $name]); foreach ($st as $r) { $out[strtolower((string)$r['p'])] = true; } } catch (Throwable $e) {}
+    }
+    return $out;
+}
+function street_key(?string $addr): string {
+    $a = strtolower(trim((string)$addr));
+    $a = preg_replace('/\s*(#|apt\.?|unit|ste\.?|suite)\s*[\w-]+.*$/i', '', $a);
+    $a = preg_replace('/[^a-z0-9 ]/', '', $a);
+    return strlen($a) > 6 ? trim($a) : '';
+}
 function building_history(array $L): array {
+    $pcodes = building_pcodes(building_name((string)$L['pcode']));
+    $street = street_key($L['address'] ?? '');
     $rows = [];
     foreach (leases_all() as $x) {
         if ($x['lease_id'] === $L['lease_id']) { continue; }
         $same = ($L['property_id'] !== '' && $x['property_id'] === $L['property_id'])
-             || ($L['pcode'] !== '' && $x['pcode'] === $L['pcode']);
+             || ($L['pcode'] !== '' && $x['pcode'] === $L['pcode'])
+             || ($pcodes && isset($pcodes[strtolower((string)$x['pcode'])]))
+             || ($street !== '' && street_key($x['address'] ?? '') === $street);
         if (!$same) { continue; }
         $rows[] = $x;
     }
-    usort($rows, fn($a, $b) => strnatcmp($a['unit'], $b['unit']));
+    usort($rows, fn($a, $b) => strnatcmp($a['pcode'] . $a['unit'], $b['pcode'] . $b['unit']));
     return $rows;
 }
 

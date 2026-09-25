@@ -150,9 +150,15 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     rent_backfill($q, $L);
     if ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }
     $q['pinned_comps'] = json_decode((string)($q['pinned_comps'] ?? ''), true) ?: [];
-    $hist = array_map(fn($x) => ['lease_id' => $x['lease_id'], 'unit' => $x['unit'] ?: $x['pcode'], 'bed' => $x['bed'], 'bath' => $x['bath'],
+    $cfg = function (array $x): string {        // FileMaker's 11.PF/F.BD.PK.Util: type - bd / ba / pk
+        $fp = fmp_property((string)$x['pcode']);
+        if (!$fp) { return ''; }
+        $bits = array_filter([$fp['type'] ?: null, ($fp['bd'] !== null ? (float)$fp['bd'] + 0 : null) . ($fp['ba'] !== null ? ' / ' . ((float)$fp['ba'] + 0) : '') . ($fp['pk'] ? ' / ' . $fp['pk'] : '')], fn($v) => $v !== null && trim((string)$v) !== '');
+        return implode(' - ', $bits);
+    };
+    $hist = array_map(fn($x) => ['lease_id' => $x['lease_id'], 'pcode' => $x['pcode'], 'unit' => $x['unit'], 'bed' => $x['bed'], 'bath' => $x['bath'],
                                 'parking' => $x['parking'], 'rent' => $x['rent'], 'last_increase' => $x['last_renewal'] ?? $x['last_increase'],
-                                'move_in' => $x['move_in'], 'tenant' => $x['tenant']], building_history($L));
+                                'move_in' => $x['move_in'], 'tenant' => $x['tenant'], 'config' => $cfg($x)], building_history($L));
     $LP = last_posted_map();
     $AD = addons_for($cycle);
     $rule = queue_rule($L, $q, $cycle, $LP[$leaseId] ?? null, $AD[$leaseId] ?? null);

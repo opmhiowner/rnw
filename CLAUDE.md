@@ -266,3 +266,9 @@ FileMaker size (money 32 px, ranges 28 px bold, deposits 24 px, pink rent-histor
 header one line, Rentvine buttons in the title row, one line per SEV video, move-out + contact in one card, the
 "pin comps" hint hidden until comps exist; `fitMain()` now checks the right pane too. Measured: 1080p → 103 %,
 1440×900 → 82 %. Open: Rentvine propertyTypeID names beyond 2 = HOUSE (the set table shows "type 3/4").
+
+**Sep 25 (Larry): same-building list = FileMaker's HS.VAOAO rule.** In Rentvine every unit is its own property, so
+`building_history()` now groups by the AOAO name (`building_name()`: renewal_property.vaoao › fmp_properties.aoao;
+`building_pcodes()` = every pcode with that name in either table) with the street (address minus the unit,
+`street_key()`) as a second net; rows show pcode + FileMaker's config string (type - bd / ba / pk from
+fmp_properties) = 11.PF/F.BD.PK.Util.

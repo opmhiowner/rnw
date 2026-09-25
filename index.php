@@ -343,8 +343,10 @@ $me = require_login();
       ['Rentvine lease', L.lease_id + (L.code ? ' · ' + L.code : '') + (L.rent_source ? ' · rent from ' + L.rent_source : '')]]
       .map(([k, v]) => `<div class="fld"><span>${k}</span><strong>${fmt.esc(v)}</strong></div>`).join('');
     $('hist-n').textContent = S.rec.history.length + ' other unit' + (S.rec.history.length === 1 ? '' : 's');
-    $('hist').innerHTML = [{ unit: L.unit, bed: L.bed, bath: L.bath, parking: L.parking, rent: L.rent, last_increase: L.last_renewal || L.last_increase, move_in: L.move_in, tenant: L.tenant, me: true }]
-      .concat(S.rec.history).map(h => `<div class="tr ${h.me ? 'me' : ''}"><span>#${fmt.esc(h.unit || '—')} · ${h.bed ?? '?'}/${h.bath ?? '?'}${h.parking ? ' · ' + fmt.esc(h.parking) + ' pk' : ''}</span>
+    const P0 = (S.rec.fmp && S.rec.fmp.property) || {};
+    const myCfg = [P0.type, [P0.bd !== null && P0.bd !== undefined ? Number(P0.bd) : null, P0.ba !== null && P0.ba !== undefined ? Number(P0.ba) : null, P0.pk].filter(v => v !== null && v !== undefined && v !== '').join(' / ')].filter(Boolean).join(' - ');
+    $('hist').innerHTML = [{ pcode: L.pcode, unit: L.unit, bed: L.bed, bath: L.bath, parking: L.parking, rent: L.rent, last_increase: L.last_renewal || L.last_increase, move_in: L.move_in, tenant: L.tenant, config: myCfg, me: true }]
+      .concat(S.rec.history).map(h => `<div class="tr ${h.me ? 'me' : ''}"><span><strong>${fmt.esc(h.pcode || h.unit || '—')}</strong> · ${h.config ? fmt.esc(h.config) : (h.bed ?? '?') + '/' + (h.bath ?? '?') + (h.parking ? ' · ' + fmt.esc(h.parking) + ' pk' : '')}</span>
         <span class="mono">${fmt.money(h.rent)}</span><span>${fmt.date(h.last_increase)}</span><span>${fmt.date(h.move_in)}</span><span>${fmt.esc(h.tenant)}</span></div>`).join('');
     $('mo-date').textContent = fmt.date(L.move_out); $('mo-notice').textContent = fmt.date(L.notice);
     $('contact').innerHTML = `${fmt.esc(L.phone || '—')}<br>${fmt.esc(L.email || '')}`;
