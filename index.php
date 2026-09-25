@@ -315,8 +315,15 @@ $me = require_login();
     $('mtm-note').textContent = L.mtm ? 'Renew MTM every 2 years' : '';
     $('firstyr').textContent = (S.rec.cat === 2) ? '(blue = 1st yr)' : '';
     $('cur-rent').textContent = fmt.money(q.current_rent);
-    $('rent-src').innerHTML = q.rent_source === 'charge' ? 'Rentvine rent charge' : (q.rent_source === 'lease' ? 'Rentvine lease' : '<span style="color:var(--warn)">unit asking rent · not yet confirmed with Rentvine</span>');
+    $('rent-src').innerHTML = (q.rent_source === 'charge' ? 'Rentvine rent charge' : (q.rent_source === 'lease' ? 'Rentvine lease' : '<span style="color:var(--warn)">unit asking rent · not yet confirmed with Rentvine</span>'))
+      + (q.status === 'open' ? ' · <a href="#" id="rent-refresh">check Rentvine now</a>' : '');
     $('rent-src').title = q.rent_checked_at ? 'Rentvine asked ' + q.rent_checked_at : 'Rentvine not reached yet';
+    const rr = $('rent-refresh'); if (rr) rr.onclick = async (e) => {
+      e.preventDefault(); rr.textContent = 'asking Rentvine…';
+      const j = await api('rent_refresh', { lease_id: S.sel, cycle: S.cycle });
+      if (!j.ok) { toast(j.error, true); renderRecord(); return; }
+      toast(j.message, !j.found); S.rec = j; renderRecord();
+    };
     $('f-new-rent').value = q.new_rent !== null ? Number(q.new_rent).toFixed(0) : ''; $('f-new-rent').placeholder = q.new_rent === null ? 'unfilled' : '';
     $('f-increase-date').value = q.increase_date || '';
     $('f-cur-dep').value = q.current_deposit !== null ? Number(q.current_deposit).toFixed(0) : '';

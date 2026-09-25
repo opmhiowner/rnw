@@ -542,6 +542,37 @@ case 'fmp_save': {
     log_event(null, 'fmp_save', ['lease_id' => $id, 'detail' => ['pcode' => $L['pcode'], 'fields' => array_keys((array)($in['fields'] ?? []))]]);
     json_out(['ok' => true, 'changed' => $r['changed']] + record_payload($id, $cycle, false));
 }
+// "check now" under Current rent: ask Rentvine immediately, ignore the throttle, and say what happened
+case 'rent_refresh': {
+    $id = trim((string)($in['lease_id'] ?? ''));
+    $cycle = cyc($in);
+    $L = lease_one($id);
+    if (!$L) { json_out(['ok' => false, 'error' => 'Unknown lease.']); }
+    $q = q_open($L, $cycle);
+    if ($q['status'] !== 'open') { json_out(['ok' => false, 'error' => 'Only an open renewal is refreshed (this one is ' . $q['status'] . ').']); }
+    $why = null;
+    $pick = rv_live_rent_charge($L['lease_id'], $why);
+    $live = rv_live_lease($L['lease_id']);
+    $set = ['rent_checked_at = NOW()']; $vals = []; $msg = [];
+    if ($pick && $pick['amount'] !== null) {
+        $rent = (float)$pick['amount'];
+        $set[] = 'current_rent = ?'; $vals[] = $rent; $set[] = "rent_source = 'charge'";
+        $set[] = 'rv_old_charge_id = COALESCE(rv_old_charge_id, ?)'; $vals[] = $pick['id'] !== '' ? $pick['id'] : null;
+        $set[] = 'rv_day_due = COALESCE(rv_day_due, ?)'; $vals[] = $pick['day_due'];
+        if ($q['new_rent'] !== null && $rent > 0) { $set[] = 'pct_inc = ?'; $vals[] = round((((float)$q['new_rent'] - $rent) / $rent) * 100, 2); }
+        $msg[] = 'rent charge ' . $pick['id'] . ' = $' . number_format($rent, 2) . ' (' . $pick['desc'] . ', due day ' . ($pick['day_due'] ?? '?') . ')';
+    } else { $msg[] = 'rent: ' . ($why ?: 'nothing'); }
+    if ($live && $live['deposit'] !== null) {
+        $dep = (float)$live['deposit'];
+        $set[] = 'current_deposit = ?'; $vals[] = $dep; $set[] = "deposit_source = 'ledger'";
+        if ($q['new_deposit'] !== null) { $set[] = 'sdr_delta = ?'; $vals[] = max(0.0, (float)$q['new_deposit'] - $dep); }
+        $msg[] = 'deposit $' . number_format($dep, 2);
+    } else { $msg[] = 'deposit: not in the lease record' . ($live ? ' (keys: ' . implode(', ', array_slice($live['keys'], 0, 25)) . ')' : ''); }
+    $vals[] = $q['id'];
+    db()->prepare("UPDATE renewal_decisions SET " . implode(', ', $set) . " WHERE id = ?")->execute($vals);
+    log_event((int)$q['id'], ($pick || ($live && $live['deposit'] !== null)) ? 'rent_from_rentvine' : 'rent_check_failed', ['lease_id' => $id, 'detail' => ['manual' => true, 'result' => $msg, 'why' => $why, 'lease_keys' => $live['keys'] ?? null]]);
+    json_out(['ok' => true, 'found' => (bool)$pick, 'message' => implode(' · ', $msg)] + record_payload($id, $cycle, false));
+}
 case 'fmp_all': {
     $id = trim((string)($in['lease_id'] ?? ''));
     $L = lease_one($id);
