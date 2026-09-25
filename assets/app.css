@@ -115,12 +115,16 @@ textarea.in { height:56px; padding:8px 10px; resize:vertical; line-height:1.4; }
 .fld > * { min-width:0; }
 .fld .in { width:100%; }
 .money-row .fld { min-width:0; overflow:hidden; }
-.money-in { font-size:20px !important; font-weight:700; color:var(--blue); height:34px; padding:0 6px; width:100%; max-width:130px; }
+.money-in { font-size:26px !important; font-weight:700; color:var(--blue); height:40px; padding:0 6px; width:100%; max-width:160px; }
 .ranges .in { padding:0 6px; }
-.money { font-size:20px; font-weight:700; font-family:var(--mono); white-space:nowrap; }
+.money { font-size:26px; font-weight:700; font-family:var(--mono); white-space:nowrap; }
 .money.blue { color:var(--blue); } .money.green { color:var(--green); } .money.red { color:var(--red); }
 .ranges { padding-top:8px; border-top:1px dashed var(--line); }
-.ranges .v { font-size:13px; font-weight:600; font-family:var(--mono); }
+.ranges .v { font-size:17px; font-weight:700; font-family:var(--mono); }
+.ranges .in.mono { font-size:16px; font-weight:700; height:34px; }
+.dep-row .in.mono { font-size:16px; font-weight:700; height:34px; }
+#sdr { font-size:24px !important; line-height:40px !important; }
+#chg { font-size:17px !important; font-weight:700; }
 .strip { padding:10px 12px; border-radius:8px; background:var(--green-bg); border:1px solid var(--green-line); font-size:12px; color:var(--green-ink); }
 .strip.warn { background:#fffbea; border-color:var(--warn-bg); color:#713f12; }
 .strip.err { background:#fff1f1; border-color:#f5c6c6; color:var(--red-ink); }
@@ -203,3 +207,10 @@ html.main-window .grid2 { gap:10px; }
 .notes-row .fld { min-width:0; }
 #histbox { max-height:calc(4 * 27px + 4px); overflow:auto; }
 .tight .notes-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
+
+/* step buttons show the resulting rent and the $ step (FileMaker: $2,652 2% $52) */
+.btn.step { height:auto; min-width:78px; padding:4px 8px; display:flex; flex-direction:column; align-items:center; line-height:1.15; gap:1px; }
+.btn.step b { font-size:13px; } .btn.step span { font-size:12px; } .btn.step em { font-style:normal; font-size:10px; color:var(--warn); }
+.btn.step.on em { color:#fde68a; }
+.listing-row { grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:14px; align-items:start; }
+.narrow .listing-row { grid-template-columns:minmax(0,1fr); }

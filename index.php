@@ -71,7 +71,7 @@ $me = require_login();
           </div>
           <div class="sub" id="h-sub"></div>
         </div>
-        <label class="chk"><input type="checkbox" id="f-revisit"> Revisit</label>
+        <label class="chk" title="Pau renewal: decided, leaves the queue (this cycle). Untick to reopen."><input type="checkbox" id="f-pau"> Pau</label>
         <button class="btn" id="btn-settings">Settings</button>
       </div>
 
@@ -80,14 +80,14 @@ $me = require_login();
           <!-- rent decision -->
           <div class="card">
             <div class="row between">
-              <h3>Rent decision</h3>
+              <span class="row" style="gap:14px"><h3>Rent decision</h3><label class="chk"><input type="checkbox" id="f-revisit"> Revisit</label></span>
               <div style="font-size:12px;color:var(--warn);font-weight:600" id="mtm-note"></div>
             </div>
             <div class="grid3 money-row">
               <div class="fld"><span>Current rent</span><span class="money" id="cur-rent">—</span></div>
               <div class="fld"><span>New rent <span style="color:var(--blue)" id="firstyr"></span></span>
                 <span class="row" style="gap:2px"><span class="money blue">$</span><input class="in sm mono money-in" id="f-new-rent"></span></div>
-              <div class="fld"><span>% increase</span><span class="money green" id="pct">—</span></div>
+              <div class="fld"><span>% increase · change</span><span class="row" style="gap:8px;align-items:baseline"><span class="money green" id="pct">—</span><span class="mono" id="chg" style="font-size:14px;color:var(--ink2)"></span></span></div>
             </div>
             <div class="row" style="flex-wrap:wrap;gap:6px">
               <span class="muted" style="width:36px">Step</span>
@@ -111,12 +111,13 @@ $me = require_login();
                 <div class="fld"><span>RANGE BOTTOM</span><span class="row" style="gap:2px"><span class="mono">$</span><input class="in sm mono" id="f-range-bottom"></span></div>
               </div>
               <div class="muted" style="font-size:11px;margin-top:6px" id="r-basis">—</div>
+              <div style="font-size:12px;margin-top:4px" id="fm-rent-history"></div>
             </div>
           </div>
           <!-- evaluation + lease -->
           <div style="display:flex;flex-direction:column;gap:10px">
             <div class="card eval">
-              <div class="row between"><h3>Evaluation</h3><span class="muted" id="last-renewal"></span></div>
+              <div class="row between" style="flex-wrap:wrap;gap:4px 10px"><h3>Evaluation</h3><span class="muted" id="last-renewal"></span><span style="font-size:12px" id="last-insp"></span></div>
               <div class="row" style="gap:6px"><input class="in sm" id="f-prop-vaoao" placeholder="Building / AOAO (e.g. Royal Kuhio AOAO)"><input class="in sm" id="f-prop-color" type="color" title="colour on the Prep list" style="width:44px;padding:2px"></div>
               <div class="grid3" style="gap:8px">
                 <label class="fld">Top<input class="in sm" id="f-eval-top"></label>
@@ -144,16 +145,22 @@ $me = require_login();
           <label class="fld"><span class="label">Remarks (list column)</span><input class="in sm" id="f-remarks" placeholder="short remark shown on the Prep list"></label>
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:8px">
+        <div class="grid2 listing-row">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div class="row between"><span class="label">Listing · FileMaker</span><span class="muted" style="font-size:11px" id="listing-area"></span></div>
+          <div id="listing" style="font-size:12px;line-height:1.45;display:flex;flex-direction:column;gap:3px"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
           <div class="row between"><span class="label">Same building — rent history</span><span class="muted" id="hist-n"></span></div>
           <div class="tbl hist" id="histbox">
             <div class="tr th"><span>Unit / config</span><span>Rent</span><span>Last renewal</span><span>Move in</span><span>Tenant</span></div>
             <div id="hist"></div>
           </div>
         </div>
+        </div>
         <!-- FileMaker: every fmp_ table for this property, on the page, editable. One-time import = live copy. -->
         <div style="display:flex;flex-direction:column;gap:8px" id="fmp-section" class="hide">
-          <div class="row" style="gap:10px;flex-wrap:wrap"><span class="label">FileMaker — this property</span><div class="chips" id="fmp-tabs" style="flex:1"></div><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
+          <div class="chips" id="fmp-tabs"></div>
           <div id="fmp-body" class="hide" style="display:flex;flex-direction:column;gap:10px;max-height:46vh;overflow:auto"></div>
         </div>
       </div>
@@ -181,9 +188,10 @@ $me = require_login();
         <div id="past" style="font-size:12px;display:flex;flex-direction:column;gap:3px"></div>
       </div>
       <div class="card white">
-        <h3>Last SEV</h3>
-        <div style="font-size:12px;color:var(--ink2)">Videos for this unit live in SEV Center.</div>
-        <a id="lnk-sev" href="https://apps.oishis.net/sev/" target="_blank" style="font-size:12px;font-weight:600">Open in SEV Center →</a>
+        <div class="row between"><h3>Last SEV</h3><a id="lnk-sev" href="https://apps.oishis.net/sev/" target="_blank" style="font-size:12px;font-weight:600">Open in SEV Center →</a></div>
+        <div class="kv" style="grid-template-columns:110px 1fr;font-size:12px;gap:3px 10px" id="sev-kv"></div>
+        <div id="sev-videos" style="font-size:12px;display:flex;flex-direction:column;gap:2px"></div>
+        <div class="row between" style="font-size:12px"><span><strong>Last Tracker</strong></span><span class="muted" id="tracker">scan lives on the office PC, not in the database</span></div>
       </div>
       <div class="card white">
         <h3>Move-out</h3>
@@ -343,7 +351,26 @@ $me = require_login();
         <span class="mono">${fmt.money(h.rent)}</span><span>${fmt.date(h.last_increase)}</span><span>${fmt.date(h.move_in)}</span><span>${fmt.esc(h.tenant)}</span></div>`).join('');
     $('mo-date').textContent = fmt.date(L.move_out); $('mo-notice').textContent = fmt.date(L.notice);
     $('contact').innerHTML = `${fmt.esc(L.phone || '—')}<br>${fmt.esc(L.email || '')}`;
-    $('lnk-sev').href = 'https://apps.oishis.net/sev/?q=' + encodeURIComponent(L.pcode || L.address || '');
+    // Last SEV + the three FileMaker-push fields from SEV Center (same database)
+    const SV = S.rec.sev, last = SV && SV.last;
+    $('lnk-sev').href = last ? 'https://apps.oishis.net/sev/?id=' + last.id : 'https://apps.oishis.net/sev/?q=' + encodeURIComponent(L.pcode || L.address || '');
+    const kv = (l, v) => v ? `<label>${l}</label><span>${fmt.esc(String(v))}</span>` : '';
+    $('sev-kv').innerHTML = !SV ? '<span class="muted" style="grid-column:1/-1">SEV Center tables not on this server</span>'
+      : (!last ? '<span class="muted" style="grid-column:1/-1">No SEV request for this lease yet.</span>'
+      : kv('SEV date', last.sev_date ? fmt.date(last.sev_date) : (last.submitted_at ? fmt.date(last.submitted_at) : '')) + kv('Status', last.status + (SV.count > 1 ? ' · ' + SV.count + ' requests' : '')) + kv('SEV request', '#' + last.id + (last.legacy_record_no ? ' · FM ' + last.legacy_record_no : ''))
+        + kv('Reviewed', last.reviewed_at ? fmt.date(last.reviewed_at) + (last.reviewed_by ? ' by ' + last.reviewed_by : '') : '')
+        + kv('Ownit', last.ownit) + kv('Cr Mowo', last.cr_mowo) + kv('Lease signup', last.lease_signup) + kv('Approved by', last.approved_by));
+    $('sev-videos').innerHTML = (SV && SV.videos || []).map(v => `<a href="https://apps.oishis.net/sev/?id=${v.request_id}" target="_blank">▶ ${fmt.esc(v.filename || 'video ' + v.id)}</a> <span class="muted">${fmt.date(v.upload_completed_at || v.created_at)}${v.duration_seconds ? ' · ' + Math.round(v.duration_seconds) + ' s' : ''} · ${fmt.esc(v.status)}</span>`).join('');
+    // FileMaker on the record: last inspected, rent history line, the listing block
+    const FR = (S.rec.fmp && S.rec.fmp.row) || {}, FP = (S.rec.fmp && S.rec.fmp.property) || {}, FM = (S.rec.fmp && S.rec.fmp.marketing) || {};
+    $('last-insp').innerHTML = FR.rnw_insp_date ? `Last inspected <strong>${fmt.date(FR.rnw_insp_date)}</strong>${FR.rnw_insp_by ? ' by <strong>' + fmt.esc(FR.rnw_insp_by) + '</strong>' : ''}${FR.rnw_insp_type ? ' · ' + fmt.esc(FR.rnw_insp_type) : ''}${FR.rnw_insp_aft_p_grade || FR.rnw_insp_aft_t_grade ? ' · grade ' + fmt.esc(FR.rnw_insp_aft_p_grade || '?') + ' / ' + fmt.esc(FR.rnw_insp_aft_t_grade || '?') : ''}` : '<span class="muted">no inspection in FileMaker</span>';
+    $('fm-rent-history').innerHTML = FM.rent_history ? `<span class="muted">Rent history (FileMaker)</span> <span class="mono">${fmt.esc(FM.rent_history)}</span>` : '';
+    $('listing-area').textContent = [FP.hna_area, FP.hsa_area, FP.area].filter(Boolean).join(' · ');
+    const ad = (FM.adcopy || FM.adcopy_plain || '').trim();
+    $('listing').innerHTML = [ad ? `<div><strong>${fmt.esc(ad)}</strong></div>` : '', FM.comps ? `<div>${fmt.esc(FM.comps)}</div>` : '',
+      FP.block ? `<div style="background:#fffbea;padding:2px 6px;border-radius:4px;display:inline-block">${fmt.esc(FP.block)}</div>` : '', FP.aoao ? `<div style="color:var(--green)">${fmt.esc(FP.aoao)}</div>` : ''].filter(Boolean).join('')
+      || '<span class="muted">no listing in FileMaker for this pcode</span>';
+    $('f-pau').checked = q.status === 'pau'; $('f-pau').disabled = q.status === 'posted' || !!S.rec.finalized;
     $('btn-post').textContent = q.status === 'posted' ? 'Posted to Rentvine ✓' : 'Post to Rentvine…';
     $('btn-post').disabled = q.status === 'posted';
     $('rv-state').textContent = q.status === 'posted' ? 'Posted ' + fmt.date(q.posted_at) + ' by ' + q.posted_by
@@ -354,7 +381,8 @@ $me = require_login();
 
   function renderSteps() {
     const q = S.rec.q, steps = S.rec.steps;
-    $('steps').innerHTML = steps.map(s => `<button class="btn mono ${Number(q.step_pct) === s ? 'on' : ''}" style="height:34px;min-width:64px;font-weight:700" data-step="${s}">${s}%</button>`).join('');
+    const cur0 = Number(q.current_rent || 0);
+    $('steps').innerHTML = steps.map(s => `<button class="btn mono step ${Number(q.step_pct) === s ? 'on' : ''}" data-step="${s}" title="${s} % → ${fmt.money(Math.round(cur0 * (1 + s / 100)))}"><b>${s}%</b><span>${cur0 ? fmt.money(Math.round(cur0 * (1 + s / 100))) : '—'}</span><em>${cur0 ? '+' + fmt.money(Math.round(cur0 * s / 100)) : ''}</em></button>`).join('');
     $('steps').querySelectorAll('button').forEach(b => b.onclick = () => {
       const cur = Number(S.rec.q.current_rent || 0), s = Number(b.dataset.step);
       $('f-new-rent').value = Math.round(cur * (1 + s / 100));
@@ -367,6 +395,8 @@ $me = require_login();
     const q = S.rec.q, cur = Number(q.current_rent || 0), raw = $('f-new-rent').value.trim(), nr = raw === '' ? null : Number(raw);
     const pct = (nr !== null && cur) ? ((nr - cur) / cur) * 100 : null;
     $('pct').textContent = pct === null ? '—' : fmt.pct(pct); $('pct').className = 'money ' + (pct > 0 ? 'green' : (pct < 0 ? 'red' : ''));
+    $('chg').textContent = nr === null || !cur ? '' : ((nr - cur >= 0 ? '+' : '−') + fmt.money(Math.abs(nr - cur)));
+    if (S.rec) $('steps').querySelectorAll('button').forEach(b => { const s = Number(b.dataset.step); b.classList.toggle('on', pct !== null && Math.abs(pct - s) < 0.05); });
     const curDep = $('f-cur-dep').value === '' ? null : Number($('f-cur-dep').value);
     if (dirty && $('f-new-dep').dataset.auto !== 'off') { $('f-new-dep').value = nr !== null ? Math.round(nr) : ''; }
     const newDep = $('f-new-dep').value === '' ? null : Number($('f-new-dep').value);
@@ -410,6 +440,13 @@ $me = require_login();
     return true;
   }
   // Prep / Print = the FileMaker 1.PREP screen: the set for this increase month
+  $('f-pau').onchange = async () => {
+    const want = $('f-pau').checked ? 'pau' : 'reopen';
+    if (S.dirty) { if (!(await save(true))) { $('f-pau').checked = !$('f-pau').checked; return; } }
+    const j = await api(want, { lease_id: S.sel, cycle: S.cycle });
+    if (!j.ok) { toast(j.error, true); $('f-pau').checked = !$('f-pau').checked; return; }
+    toast(want === 'pau' ? 'Pau · out of the queue' : 'Reopened'); S.rec = j; renderRecord(); await loadBoard();
+  };
   $('btn-prep').onclick = async () => {
     if (S.dirty) { await save(true); }
     window.open('prep.php?cycle=' + encodeURIComponent(S.cycle), 'rc-prep');
@@ -436,8 +473,6 @@ $me = require_login();
     const keys = j.ok ? Object.keys(j.tables) : [];
     $('fmp-section').classList.toggle('hide', !keys.length);
     if (!keys.length) return;
-    const stamp = keys.map(k => (j.tables[k].rows[0] || {}).imported_at).find(Boolean);
-    $('fmp-when').textContent = (stamp ? 'imported ' + String(stamp).slice(0, 10) + ' · ' : '') + 'edited here from now on';
     const field = (c, v) => {
       const val = v === null || v === undefined ? '' : String(v);
       if (c.kind === 'ro') return `<label>${fmt.esc(c.label)}</label><span class="muted mono" style="font-size:11px">${fmt.esc(val)}</span>`;

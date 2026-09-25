@@ -187,3 +187,35 @@ function fmp_row_save(string $key, int $id, array $fields): array {
     } catch (Throwable $e) { return ['ok' => false, 'error' => 'FileMaker table: ' . $e->getMessage()]; }
     return ['ok' => true, 'changed' => count($set)];
 }
+
+// ---------- SEV Center (same database): the lease's latest SEV request, its videos and the
+// three FileMaker fields SEV receives with every push (Ownit = fm_young, Cr Mowo = fm_yp,
+// Lease Signup = fm_owner). Tolerant: no sev_ tables -> null.
+function sev_last(string $leaseId, string $pcode = ''): ?array {
+    if (!in_array('rentvine_lease_id', fmp_columns('sev_requests'), true)) { return null; }
+    $cols = fmp_columns('sev_requests');
+    $pick = fn(array $want) => implode(', ', array_map(fn($c) => "`$c`", array_values(array_filter($want, fn($c) => in_array($c, $cols, true)))));
+    // SEV v1.42 renamed the FileMaker-push columns: fm_young -> fm_ownit, fm_yp -> fm_cr_mowo, fm_owner -> fm_lease_signup
+    $sel = $pick(['id', 'status', 'sev_date', 'next_sev_date', 'due_date', 'submitted_at', 'reviewed_at', 'reviewed_by', 'created_at', 'legacy_record_no',
+                  'fm_ownit', 'fm_cr_mowo', 'fm_lease_signup', 'fm_approved_by', 'fm_young', 'fm_yp', 'fm_owner', 'tenant_names', 'property_address']);
+    $st = db()->prepare("SELECT $sel FROM sev_requests WHERE office_id = ? AND rentvine_lease_id = ? ORDER BY COALESCE(sev_date, submitted_at, created_at) DESC, id DESC LIMIT 5");
+    $st->execute([oid(), $leaseId]);
+    $rows = $st->fetchAll();
+    foreach ($rows as &$r) {   // one shape for Main whichever names the server has
+        $r['ownit'] = $r['fm_ownit'] ?? $r['fm_young'] ?? null;
+        $r['cr_mowo'] = $r['fm_cr_mowo'] ?? $r['fm_yp'] ?? null;
+        $r['lease_signup'] = $r['fm_lease_signup'] ?? $r['fm_owner'] ?? null;
+        $r['approved_by'] = $r['fm_approved_by'] ?? null;
+        unset($r['fm_ownit'], $r['fm_cr_mowo'], $r['fm_lease_signup'], $r['fm_approved_by'], $r['fm_young'], $r['fm_yp'], $r['fm_owner']);
+    }
+    unset($r);
+    if (!$rows) { return ['count' => 0, 'last' => null, 'videos' => []]; }
+    $last = $rows[0];
+    $videos = [];
+    if (in_array('request_id', fmp_columns('sev_videos'), true)) {
+        $vs = db()->prepare("SELECT id, request_id, status, filename, duration_seconds, created_at, upload_completed_at FROM sev_videos WHERE request_id IN (" . implode(',', array_fill(0, count($rows), '?')) . ") AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 8");
+        $vs->execute(array_column($rows, 'id'));
+        $videos = $vs->fetchAll();
+    }
+    return ['count' => count($rows), 'last' => $last, 'requests' => $rows, 'videos' => $videos];
+}

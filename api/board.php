@@ -161,6 +161,7 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
             'media' => media_row($L['pcode'] ?: $L['property_id']), 'property' => property_row($L['pcode']),
             'fmp' => ['ready' => fmp_ready(), 'fields' => fmp_renewal_fields(), 'row' => fmp_renewal((string)$L['pcode']),
                       'property' => fmp_property((string)$L['pcode']), 'marketing' => fmp_marketing((string)$L['pcode'])],
+            'sev' => sev_last($leaseId, (string)$L['pcode']),
             'past' => q_history($leaseId),
             'cycle' => cycle_info($cycle), 'finalized' => cycle_finalized($cycle),
             'anchor' => ['date' => $anchor, 'source' => $anchorSrc],

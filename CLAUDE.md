@@ -244,3 +244,13 @@ scroll box, FileMaker section closed until a tab is clicked, body in a 46vh scro
 `fitMain()` steps `--main-scale` down from `main_scale` (floor 0.8) until `#recbody` needs no scrollbar, per-PC
 toggle `renewal.fit` in Settings, `#fitnote` shows the % when it shrank. Measured: 1920×1080 stays 115 %,
 1440×900 → 94 %, 1366×768 → 85 % (all three fill the window, nothing scrolls); under CSS zoom 100vh is not divided by the factor, so body and .shell get `calc(100vh / scale)`.
+
+**Sep 25 (Larry): every field of the FileMaker 3.CENTER layout on Main.** Step buttons show the resulting rent and $
+step; $ change next to %; Last inspected / by / type / grades in the Evaluation header (`fmp_renewals`); the pink
+rent-history strip (`fmp_marketing.rent_history`); "Listing · FileMaker" block bottom-left (area codes, ad copy,
+comps copy, block location, AOAO); Last SEV card filled from SEV Center's tables on the same DB (`sev_last()` in
+lib/fmp.php: latest `sev_requests` for the lease + `sev_videos`, Ownit / Cr Mowo / Lease signup / Approved by =
+`fm_ownit / fm_cr_mowo / fm_lease_signup / fm_approved_by` after SEV v1.42's rename, old `fm_young / fm_yp /
+fm_owner` still read as fallback); Pau checkbox next to the record header; Revisit beside the Rent decision
+heading; FileMaker tab row has no label. Money type larger (26 px). Not available: TPast Due (no balance in the
+mirror), FileMaker's per-property renewal history rows (never exported), Last Tracker scans (files on the PC).
