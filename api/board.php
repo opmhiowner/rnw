@@ -90,8 +90,16 @@ function rent_backfill(array &$q, array $L): void {
     $rentOk = $q['current_rent'] !== null && ($q['rent_source'] ?? '') === 'charge';
     $depOk  = $q['current_deposit'] !== null && in_array($q['deposit_source'] ?? '', ['ledger', 'lease'], true);
     if (($rentOk && $depOk) || $fresh) { return; }
-    $pick = $rentOk ? null : rv_live_rent_charge($L['lease_id']);
+    $why = null;
+    $pick = $rentOk ? null : rv_live_rent_charge($L['lease_id'], $why);
     $live = $depOk ? null : rv_live_lease($L['lease_id']);
+    if (!$pick && !$live) {
+        // nothing came back: say why (events) and try again in 10 minutes, not tomorrow
+        db()->prepare("UPDATE renewal_decisions SET rent_checked_at = NOW() - INTERVAL 1430 MINUTE WHERE id = ?")->execute([$q['id']]);
+        log_event((int)$q['id'], 'rent_check_failed', ['lease_id' => $L['lease_id'], 'detail' => ['why' => $why ?: 'lease GET returned nothing either']]);
+        $q = q_row($L['lease_id'], $q['cycle']);
+        return;
+    }
     $set = ['rent_checked_at = NOW()']; $vals = []; $detail = [];
     if ($pick && $pick['amount'] !== null) {
         $rent = (float)$pick['amount'];

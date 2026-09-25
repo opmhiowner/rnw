@@ -272,12 +272,14 @@ function rv_live_lease(string $leaseId): ?array {
         'keys'    => array_slice(array_keys($L), 0, 60),
     ];
 }
-function rv_live_rent_charge(string $leaseId): ?array {
+function rv_live_rent_charge(string $leaseId, ?string &$why = null): ?array {
     $c = rv_creds();
-    if ($c['key'] === '' || $c['base'] === '') { return null; }
+    if ($c['key'] === '' || $c['base'] === '') { $why = 'Rentvine is not connected for this office (no key / base URL - Settings > Rentvine, source ' . $c['source'] . ')'; return null; }
     $r = rv_call('GET', rv_fill(rv_tpl('rv_charges_list_url'), ['base' => $c['base'], 'lease_id' => $leaseId]), null, 15);
-    if (!$r['ok']) { return null; }
-    return rv_pick_rent_charge($r['json']);
+    if (!$r['ok']) { $why = ($r['error'] ?: 'HTTP ' . $r['code']) . ' ' . mb_substr((string)$r['body'], 0, 300); return null; }
+    $pick = rv_pick_rent_charge($r['json']);
+    if (!$pick) { $why = 'no open rent charge matched (' . count(rv_charge_rows($r['json'])) . ' charges on the lease; match rule "' . rv_tpl('rv_rent_match') . '" / account.isRent)'; }
+    return $pick;
 }
 
 // ---------- run it. $only = one step key for "retry this step"; null = all pending
