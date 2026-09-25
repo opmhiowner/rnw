@@ -254,3 +254,9 @@ lib/fmp.php: latest `sev_requests` for the lease + `sev_videos`, Ownit / Cr Mowo
 fm_owner` still read as fallback); Pau checkbox next to the record header; Revisit beside the Rent decision
 heading; FileMaker tab row has no label. Money type larger (26 px). Not available: TPast Due (no balance in the
 mirror), FileMaker's per-property renewal history rows (never exported), Last Tracker scans (files on the PC).
+
+**Sep 25 (Larry): sizes and labels.** Ad copy shown as FileMaker's calc has it (first line = area code such as "408 EW",
+`white-space:pre-line`), the separate area line dropped; no Pau / Close button ("pau" = close, not wanted on Main);
+labels "Listing" and "Rent history" without "FileMaker"; right-pane "Renewal history" = this app's posted renewals in
+FileMaker's RENEWALS.PERM shape (date | new rent green | ASD, tenure yrs on top, no status tag); rent card type at
+FileMaker size (money 32 px, ranges 28 px bold, deposits 24 px, pink rent-history strip 18 px). Fit: 1080p → 112 %.

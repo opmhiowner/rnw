@@ -71,7 +71,6 @@ $me = require_login();
           </div>
           <div class="sub" id="h-sub"></div>
         </div>
-        <label class="chk" title="Pau renewal: decided, leaves the queue (this cycle). Untick to reopen."><input type="checkbox" id="f-pau"> Pau</label>
         <button class="btn" id="btn-settings">Settings</button>
       </div>
 
@@ -147,7 +146,7 @@ $me = require_login();
 
         <div class="grid2 listing-row">
         <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
-          <div class="row between"><span class="label">Listing · FileMaker</span><span class="muted" style="font-size:11px" id="listing-area"></span></div>
+          <div class="row between"><span class="label">Listing</span></div>
           <div id="listing" style="font-size:12px;line-height:1.45;display:flex;flex-direction:column;gap:3px"></div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
@@ -184,8 +183,8 @@ $me = require_login();
         <div class="row"><button class="btn sm" id="btn-rv-plan">Preview the 4 steps</button><button class="btn sm" id="btn-events">Activity</button></div>
       </div>
       <div class="card white">
-        <h3>Past renewals</h3>
-        <div id="past" style="font-size:12px;display:flex;flex-direction:column;gap:3px"></div>
+        <div class="row between"><h3>Renewal history</h3><span class="mono" id="tenure" style="font-size:15px;font-weight:700"></span></div>
+        <div class="tbl rhist" id="past"></div>
       </div>
       <div class="card white">
         <div class="row between"><h3>Last SEV</h3><a id="lnk-sev" href="https://apps.oishis.net/sev/" target="_blank" style="font-size:12px;font-weight:600">Open in SEV Center →</a></div>
@@ -332,7 +331,10 @@ $me = require_login();
     const P = S.rec.property || {};
     $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-vaoao').title = P.vaoao_source === 'filemaker' ? 'from FileMaker (fmp_properties.aoao) - saving writes it back there too' : ''; $('f-prop-color').value = P.color || '#ffffff';
     renderFmp(); requestAnimationFrame(fitMain);
-    $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle).map(p => `<div class="row between"><span>${fmt.cycle(p.cycle)} <span class="tag ${p.status}">${p.status}</span></span><span class="mono">${fmt.money(p.current_rent)} → ${fmt.money(p.new_rent)} ${p.pct_inc !== null ? '(' + fmt.pct(p.pct_inc) + ')' : ''}</span></div>`).join('') || '<span class="muted">none in this app yet</span>';
+    // FileMaker's RENEWALS.PERM list: increase date | new rent | ASD, tenure on top. Fills as renewals are decided here.
+    $('tenure').textContent = L.move_in ? ((Date.now() - new Date(L.move_in)) / 31557600000).toFixed(2) + ' yrs' : '';
+    $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle && p.status === 'posted' && p.new_rent !== null).map(p => `<div class="tr"><span>${fmt.date(p.increase_date)}</span><span class="mono rent">${fmt.money(p.new_rent)}</span><span class="mono">${fmt.money(p.sdr_delta || 0)}</span></div>`).join('')
+      || '<div class="tr muted" style="grid-template-columns:1fr">none posted from this app yet</div>';
     const fin = !!S.rec.finalized;
     $('btn-prep').disabled = fin;
     $('savestate').textContent = fin ? 'finalized · read-only' : '';
@@ -364,13 +366,13 @@ $me = require_login();
     // FileMaker on the record: last inspected, rent history line, the listing block
     const FR = (S.rec.fmp && S.rec.fmp.row) || {}, FP = (S.rec.fmp && S.rec.fmp.property) || {}, FM = (S.rec.fmp && S.rec.fmp.marketing) || {};
     $('last-insp').innerHTML = FR.rnw_insp_date ? `Last inspected <strong>${fmt.date(FR.rnw_insp_date)}</strong>${FR.rnw_insp_by ? ' by <strong>' + fmt.esc(FR.rnw_insp_by) + '</strong>' : ''}${FR.rnw_insp_type ? ' · ' + fmt.esc(FR.rnw_insp_type) : ''}${FR.rnw_insp_aft_p_grade || FR.rnw_insp_aft_t_grade ? ' · grade ' + fmt.esc(FR.rnw_insp_aft_p_grade || '?') + ' / ' + fmt.esc(FR.rnw_insp_aft_t_grade || '?') : ''}` : '<span class="muted">no inspection in FileMaker</span>';
-    $('fm-rent-history').innerHTML = FM.rent_history ? `<span class="muted">Rent history (FileMaker)</span> <span class="mono">${fmt.esc(FM.rent_history)}</span>` : '';
-    $('listing-area').textContent = [FP.hna_area, FP.hsa_area, FP.area].filter(Boolean).join(' · ');
+    $('fm-rent-history').innerHTML = FM.rent_history ? `<span class="muted">Rent history</span> <span class="mono">${fmt.esc(FM.rent_history)}</span>` : '';
+    // the ad-copy calc carries its own first line (the area code, e.g. "408 EW") - shown as FileMaker shows it
     const ad = (FM.adcopy || FM.adcopy_plain || '').trim();
-    $('listing').innerHTML = [ad ? `<div><strong>${fmt.esc(ad)}</strong></div>` : '', FM.comps ? `<div>${fmt.esc(FM.comps)}</div>` : '',
+    $('listing').innerHTML = [ad ? `<div style="white-space:pre-line"><strong>${fmt.esc(ad)}</strong></div>` : '', FM.comps ? `<div>${fmt.esc(FM.comps)}</div>` : '',
       FP.block ? `<div style="background:#fffbea;padding:2px 6px;border-radius:4px;display:inline-block">${fmt.esc(FP.block)}</div>` : '', FP.aoao ? `<div style="color:var(--green)">${fmt.esc(FP.aoao)}</div>` : ''].filter(Boolean).join('')
       || '<span class="muted">no listing in FileMaker for this pcode</span>';
-    $('f-pau').checked = q.status === 'pau'; $('f-pau').disabled = q.status === 'posted' || !!S.rec.finalized;
+
     $('btn-post').textContent = q.status === 'posted' ? 'Posted to Rentvine ✓' : 'Post to Rentvine…';
     $('btn-post').disabled = q.status === 'posted';
     $('rv-state').textContent = q.status === 'posted' ? 'Posted ' + fmt.date(q.posted_at) + ' by ' + q.posted_by
@@ -440,13 +442,6 @@ $me = require_login();
     return true;
   }
   // Prep / Print = the FileMaker 1.PREP screen: the set for this increase month
-  $('f-pau').onchange = async () => {
-    const want = $('f-pau').checked ? 'pau' : 'reopen';
-    if (S.dirty) { if (!(await save(true))) { $('f-pau').checked = !$('f-pau').checked; return; } }
-    const j = await api(want, { lease_id: S.sel, cycle: S.cycle });
-    if (!j.ok) { toast(j.error, true); $('f-pau').checked = !$('f-pau').checked; return; }
-    toast(want === 'pau' ? 'Pau · out of the queue' : 'Reopened'); S.rec = j; renderRecord(); await loadBoard();
-  };
   $('btn-prep').onclick = async () => {
     if (S.dirty) { await save(true); }
     window.open('prep.php?cycle=' + encodeURIComponent(S.cycle), 'rc-prep');

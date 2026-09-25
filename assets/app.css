@@ -214,3 +214,28 @@ html.main-window .grid2 { gap:10px; }
 .btn.step.on em { color:#fde68a; }
 .listing-row { grid-template-columns:minmax(0,2fr) minmax(0,3fr); gap:14px; align-items:start; }
 .narrow .listing-row { grid-template-columns:minmax(0,1fr); }
+
+/* Renewal history in FileMaker's shape: date | new rent (green) | ASD | status */
+.tbl.rhist .tr { grid-template-columns:1.1fr 1fr 0.8fr; font-size:14px; padding:4px 8px; align-items:center; }
+.tbl.rhist .rent { background:var(--green-bg); color:var(--green-ink); font-weight:700; padding:1px 6px; border-radius:4px; }
+
+/* Rent decision card: bigger type all round (Larry, Sep 25) */
+html.main-window .card .fld { font-size:14px; }
+html.main-window .card .fld .in.sm { font-size:18px; height:40px; }
+html.main-window .money { font-size:32px; }
+html.main-window .money-in { font-size:32px !important; height:46px; max-width:200px; }
+html.main-window #sdr { font-size:32px !important; line-height:46px !important; }
+html.main-window #chg { font-size:20px !important; }
+/* FileMaker's Original O.Letter figures are the biggest type on its screen: match them */
+html.main-window .ranges .v { font-size:28px; font-weight:700; line-height:46px; }
+html.main-window .ranges .in.mono { font-size:26px; height:46px; font-weight:700; }
+html.main-window .dep-row .in.mono { font-size:24px; height:44px; font-weight:700; }
+html.main-window .dep-row .in[type="date"] { font-size:18px; height:44px; }
+html.main-window .ranges .fld > span:first-child { font-size:12px; letter-spacing:.04em; }
+html.main-window .btn.step { min-width:92px; padding:5px 10px; }
+html.main-window .btn.step b { font-size:15px; } html.main-window .btn.step span { font-size:14px; } html.main-window .btn.step em { font-size:11px; }
+html.main-window .btn.arrow { height:44px; min-width:52px; font-size:20px; }
+html.main-window #mtm-note { font-size:13px; }
+html.main-window #r-basis { font-size:12px !important; }
+html.main-window #fm-rent-history { font-size:16px !important; }
+html.main-window #fm-rent-history .mono { font-size:18px; font-weight:700; background:#fde2e2; padding:2px 8px; border-radius:4px; }   /* the pink RENT HISTORY strip */
