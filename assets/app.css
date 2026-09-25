@@ -14,6 +14,9 @@
 html { font-size:13px; }
 html[data-display="on"] { zoom:var(--display-scale,1.35); }
 html.main-window[data-display="off"] { zoom:var(--main-scale,1.15); }   /* Main alone runs a little larger (Settings > Main window size) */
+/* under CSS zoom, 100vh is not divided by the zoom factor: size the page to the real window */
+html.main-window[data-display="off"] body, html.main-window[data-display="off"] .shell { height:calc(100vh / var(--main-scale,1.15)); }
+html[data-display="on"] body, html[data-display="on"] .shell { height:calc(100vh / var(--display-scale,1.35)); }
 * { box-sizing:border-box; }
 body { margin:0; font-family:'IBM Plex Sans',system-ui,sans-serif; background:var(--ground); color:var(--ink);
        height:100vh; overflow:hidden; font-size:13px; line-height:1.4; }

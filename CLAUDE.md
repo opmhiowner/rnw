@@ -243,4 +243,4 @@ Renewal's own.
 scroll box, FileMaker section closed until a tab is clicked, body in a 46vh scroll box, closes on record change);
 `fitMain()` steps `--main-scale` down from `main_scale` (floor 0.8) until `#recbody` needs no scrollbar, per-PC
 toggle `renewal.fit` in Settings, `#fitnote` shows the % when it shrank. Measured: 1920×1080 stays 115 %,
-1440×900 → 88 %, 1366×768 → 80 % (still scrolls a little).
+1440×900 → 94 %, 1366×768 → 85 % (all three fill the window, nothing scrolls); under CSS zoom 100vh is not divided by the factor, so body and .shell get `calc(100vh / scale)`.
