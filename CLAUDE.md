@@ -272,3 +272,10 @@ header one line, Rentvine buttons in the title row, one line per SEV video, move
 `building_pcodes()` = every pcode with that name in either table) with the street (address minus the unit,
 `street_key()`) as a second net; rows show pcode + FileMaker's config string (type - bd / ba / pk from
 fmp_properties) = 11.PF/F.BD.PK.Util.
+
+**Sep 25 (Larry): current rent was the UNIT's asking rent.** The mirror's `unit.rent / unit.deposit` are asking
+figures (pv009c: $2,200 vs Rentvine's actual $2,600 on the rent charge / ledger). Now `lease_join()` prefers lease-level
+keys and records `rent_source` / `deposit_source` ('lease' | 'unit'); `rent_backfill()` runs for every OPEN decision
+whose rent is not yet 'charge' (or deposit not 'ledger'), at most once a day (`rent_checked_at`), taking the live rent
+charge amount (`rv_live_rent_charge`) and the live lease's deposit (`rv_live_lease`, tolerant keys, key names logged in
+the `rent_from_rentvine` event for confirmation); pct / SDR recomputed. Main shows the source under Current rent.

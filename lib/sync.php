@@ -163,8 +163,15 @@ function lease_join(array $ix, array $F): array {
     $mtmStart = sx_date($L, ['monthToMonthStartDate']);
     $mtm = in_array(strtolower((string)$mtmFlag), ['1', 'true', 'yes'], true) || $mtmStart !== null || $openEnded;
     if (!$mtm && $mtmFlag === null && $end !== null && $end < date('Y-m-d')) { $mtm = true; }   // expired fixed term rolls to MTM
-    $rent = sx_num($LU, ['rent']) ?? sx_num($U, ['rent']) ?? sx_num($L, ['rent', 'rentAmount', 'monthlyRent']);
-    $deposit = sx_num($LU, ['deposit']) ?? sx_num($U, ['deposit']) ?? sx_num($L, ['securityDeposit', 'depositAmount', 'deposit']);
+    // The lease's own figures first (Rentvine: "Actual Rent Amount", security deposit); the unit's
+    // rent / deposit are its ASKING figures and only a fallback - Rentvine keeps the real rent on the
+    // rent recurring charge, which rent_backfill() reads live when the mirror has only the unit's.
+    $rentLease = sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent', 'currentRent']);
+    $rent = $rentLease ?? sx_num($LU, ['rent']) ?? sx_num($U, ['rent']);
+    $rentSource = $rentLease !== null ? 'lease' : ($rent !== null ? 'unit' : null);
+    $depLease = sx_num($L, ['securityDepositAmount', 'securityDeposit', 'securityDepositBalance', 'depositAmount', 'deposit']);
+    $deposit = $depLease ?? sx_num($LU, ['deposit']) ?? sx_num($U, ['deposit']);
+    $depositSource = $depLease !== null ? 'lease' : ($deposit !== null ? 'unit' : null);
     $eligible = sx_date($L, ['increaseEligibilityDate']);
     // Rentvine moves increaseEligibilityDate a year out at each increase: the last increase is a year before it
     $lastInc = sx_date($L, ['lastRentIncreaseDate', 'lastIncreaseDate']) ?? ($eligible ? date('Y-m-d', strtotime($eligible . ' -1 year')) : null);
@@ -203,8 +210,8 @@ function lease_join(array $ix, array $F): array {
         'property_id'  => $pid, 'unit_id' => $uid, 'owner_id' => $oid_, 'tenant_id' => $tid,
         'ptype'        => $ptype,
         'bed' => $bed, 'bath' => $bath, 'sqft' => $sqft, 'parking' => $park === null ? '' : (string)$park,
-        'rent'         => $rent,
-        'deposit'      => $deposit,
+        'rent'         => $rent, 'rent_source' => $rentSource,
+        'deposit'      => $deposit, 'deposit_source' => $depositSource,
         'start'        => $start, 'move_in' => $moveIn, 'end' => $end, 'open_ended' => $openEnded,
         'move_out'     => $moveOut, 'notice' => $notice, 'vacating' => $vacating, 'closed' => $closed,
         'mtm'          => $mtm,

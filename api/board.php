@@ -81,17 +81,39 @@ function in_set(string $leaseId, string $cycle): bool {
 // current rent missing from the mirror -> ask Rentvine for the rent charge
 // once, and remember charge id + due day on the row (the post's find step)
 function rent_backfill(array &$q, array $L): void {
-    if ($q['current_rent'] !== null || $q['status'] !== 'open') { return; }
+    // Rentvine keeps the real rent on the lease's rent recurring charge and the deposit on the ledger;
+    // the mirror carries the UNIT's asking figures. So an open decision whose current rent / deposit
+    // is not yet confirmed from Rentvine asks once a day (live GETs) and takes Rentvine's numbers.
+    if ($q['status'] !== 'open') { return; }
     if (setting('rent_backfill_off', '0') === '1') { return; }
-    $pick = rv_live_rent_charge($L['lease_id']);
-    if (!$pick || $pick['amount'] === null) { return; }
-    $rent = (float)$pick['amount'];
-    $pct = ($q['new_rent'] !== null && $rent > 0) ? round((((float)$q['new_rent'] - $rent) / $rent) * 100, 2) : null;
-    db()->prepare("UPDATE renewal_decisions SET current_rent = ?, lease_rent = COALESCE(lease_rent, ?), pct_inc = ?,
-                     rv_old_charge_id = COALESCE(rv_old_charge_id, ?), rv_day_due = COALESCE(rv_day_due, ?)
-                   WHERE id = ?")
-        ->execute([$rent, $rent, $pct, $pick['id'] !== '' ? $pick['id'] : null, $pick['day_due'], $q['id']]);
-    log_event((int)$q['id'], 'rent_from_rentvine', ['lease_id' => $L['lease_id'], 'detail' => ['charge' => $pick['id'], 'amount' => $rent, 'desc' => $pick['desc'], 'day_due' => $pick['day_due']]]);
+    $fresh = !empty($q['rent_checked_at']) && strtotime((string)$q['rent_checked_at']) > time() - 86400;
+    $rentOk = $q['current_rent'] !== null && ($q['rent_source'] ?? '') === 'charge';
+    $depOk  = $q['current_deposit'] !== null && in_array($q['deposit_source'] ?? '', ['ledger', 'lease'], true);
+    if (($rentOk && $depOk) || $fresh) { return; }
+    $pick = $rentOk ? null : rv_live_rent_charge($L['lease_id']);
+    $live = $depOk ? null : rv_live_lease($L['lease_id']);
+    $set = ['rent_checked_at = NOW()']; $vals = []; $detail = [];
+    if ($pick && $pick['amount'] !== null) {
+        $rent = (float)$pick['amount'];
+        $set[] = 'current_rent = ?'; $vals[] = $rent;
+        $set[] = 'lease_rent = COALESCE(lease_rent, ?)'; $vals[] = $rent;
+        $set[] = "rent_source = 'charge'";
+        $set[] = 'rv_old_charge_id = COALESCE(rv_old_charge_id, ?)'; $vals[] = $pick['id'] !== '' ? $pick['id'] : null;
+        $set[] = 'rv_day_due = COALESCE(rv_day_due, ?)'; $vals[] = $pick['day_due'];
+        if ($q['new_rent'] !== null && $rent > 0) { $set[] = 'pct_inc = ?'; $vals[] = round((((float)$q['new_rent'] - $rent) / $rent) * 100, 2); }
+        $detail['charge'] = ['id' => $pick['id'], 'amount' => $rent, 'desc' => $pick['desc'], 'day_due' => $pick['day_due']];
+    }
+    if ($live && $live['deposit'] !== null) {
+        $dep = (float)$live['deposit'];
+        $set[] = 'current_deposit = ?'; $vals[] = $dep;
+        $set[] = "deposit_source = 'ledger'";
+        if ($q['new_deposit'] !== null) { $set[] = 'sdr_delta = ?'; $vals[] = max(0.0, (float)$q['new_deposit'] - $dep); }
+        $detail['deposit'] = $dep;
+    }
+    if ($live) { $detail['lease_keys'] = $live['keys']; }
+    $vals[] = $q['id'];
+    db()->prepare("UPDATE renewal_decisions SET " . implode(', ', $set) . " WHERE id = ?")->execute($vals);
+    if ($detail) { log_event((int)$q['id'], 'rent_from_rentvine', ['lease_id' => $L['lease_id'], 'detail' => $detail]); }
     $q = q_row($L['lease_id'], $q['cycle']);
 }
 
@@ -145,7 +167,12 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     $L = lease_one($leaseId);
     if (!$L) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in Sync Center for this office.']); }
     $q = q_row($leaseId, $cycle);
-    if (!$q && $create) { $q = q_open($L, $cycle); }   // a decision row only; membership is separate
+    if (!$q && $create) {
+        $q = q_open($L, $cycle);   // a decision row only; membership is separate
+        db()->prepare("UPDATE renewal_decisions SET rent_source = COALESCE(rent_source, ?), deposit_source = COALESCE(deposit_source, ?) WHERE id = ?")
+            ->execute([$L['rent_source'] ?? null, $L['deposit_source'] ?? null, $q['id']]);
+        $q = q_row($leaseId, $cycle);
+    }
     if (!$q) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in cycle ' . $cycle . '.']); }
     rent_backfill($q, $L);
     if ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }

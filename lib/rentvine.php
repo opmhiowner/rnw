@@ -256,6 +256,22 @@ function rv_pick_rent_charge(?array $j): ?array {
 // on the recurring charge, not on the lease record, so when Sync Center's
 // mirror has no rent this is where "current rent" comes from. Returns the
 // picked charge row or null (no creds / no charge / network).
+// the lease itself, live (one GET): the security deposit held and, if Rentvine puts it there, the
+// actual rent. Keys read tolerantly; the raw keys are logged once so the mapping can be confirmed.
+function rv_live_lease(string $leaseId): ?array {
+    $c = rv_creds();
+    if ($c['key'] === '' || $c['base'] === '') { return null; }
+    $r = rv_call('GET', $c['base'] . '/leases/' . rawurlencode($leaseId), null, 15);
+    if (!$r['ok'] || !is_array($r['json'])) { return null; }
+    $j = $r['json'];
+    $L = isset($j['lease']) && is_array($j['lease']) ? $j['lease'] : $j;
+    return [
+        'rent'    => sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent']) ?? sx_num($j, ['actualRentAmount', 'rentAmount', 'rent']),
+        'deposit' => sx_num($L, ['securityDepositBalance', 'securityBalance', 'securityDeposit', 'securityDepositAmount', 'depositBalance', 'depositHeld'])
+                  ?? sx_num($j, ['securityDepositBalance', 'securityBalance', 'balances.securityDeposit', 'balances.security', 'securityDeposit']),
+        'keys'    => array_slice(array_keys($L), 0, 60),
+    ];
+}
 function rv_live_rent_charge(string $leaseId): ?array {
     $c = rv_creds();
     if ($c['key'] === '' || $c['base'] === '') { return null; }

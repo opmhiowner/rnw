@@ -83,7 +83,7 @@ $me = require_login();
               <div style="font-size:12px;color:var(--warn);font-weight:600" id="mtm-note"></div>
             </div>
             <div class="grid3 money-row">
-              <div class="fld"><span>Current rent</span><span class="money" id="cur-rent">—</span></div>
+              <div class="fld"><span>Current rent</span><span class="money" id="cur-rent">—</span><span class="muted" id="rent-src" style="font-size:11px;line-height:1.2"></span></div>
               <div class="fld"><span>New rent <span style="color:var(--blue)" id="firstyr"></span></span>
                 <span class="row" style="gap:2px"><span class="money blue">$</span><input class="in sm mono money-in" id="f-new-rent"></span></div>
               <div class="fld"><span>% increase · change</span><span class="row" style="gap:8px;align-items:baseline"><span class="money green" id="pct">—</span><span class="mono" id="chg" style="font-size:14px;color:var(--ink2)"></span></span></div>
@@ -315,6 +315,8 @@ $me = require_login();
     $('mtm-note').textContent = L.mtm ? 'Renew MTM every 2 years' : '';
     $('firstyr').textContent = (S.rec.cat === 2) ? '(blue = 1st yr)' : '';
     $('cur-rent').textContent = fmt.money(q.current_rent);
+    $('rent-src').innerHTML = q.rent_source === 'charge' ? 'Rentvine rent charge' : (q.rent_source === 'lease' ? 'Rentvine lease' : '<span style="color:var(--warn)">unit asking rent · not yet confirmed with Rentvine</span>');
+    $('rent-src').title = q.rent_checked_at ? 'Rentvine asked ' + q.rent_checked_at : 'Rentvine not reached yet';
     $('f-new-rent').value = q.new_rent !== null ? Number(q.new_rent).toFixed(0) : ''; $('f-new-rent').placeholder = q.new_rent === null ? 'unfilled' : '';
     $('f-increase-date').value = q.increase_date || '';
     $('f-cur-dep').value = q.current_deposit !== null ? Number(q.current_deposit).toFixed(0) : '';

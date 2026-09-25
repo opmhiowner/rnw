@@ -384,6 +384,9 @@ function schema_apply(): void {
     $addcols['renewal_decisions']['rv_verified_at'] = "ALTER TABLE renewal_decisions ADD COLUMN rv_verified_at DATETIME NULL";
     $addcols['renewal_decisions']['rv_verify_ok']   = "ALTER TABLE renewal_decisions ADD COLUMN rv_verify_ok TINYINT(1) NULL";
     $addcols['renewal_decisions']['rv_verify_note'] = "ALTER TABLE renewal_decisions ADD COLUMN rv_verify_note VARCHAR(500) NULL";
+    $addcols['renewal_decisions']['rent_source']    = "ALTER TABLE renewal_decisions ADD COLUMN rent_source VARCHAR(16) NULL";
+    $addcols['renewal_decisions']['deposit_source'] = "ALTER TABLE renewal_decisions ADD COLUMN deposit_source VARCHAR(16) NULL";
+    $addcols['renewal_decisions']['rent_checked_at'] = "ALTER TABLE renewal_decisions ADD COLUMN rent_checked_at DATETIME NULL";
     foreach ($addcols as $table => $cols) {
         $have = [];
         foreach ($pdo->query("SHOW COLUMNS FROM `$table`") as $r) { $have[$r['Field']] = true; }
