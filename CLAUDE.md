@@ -285,3 +285,6 @@ the lease **search** does when asked: `GET /leases/search?includeBalances=true&l
 (the "Security Balance" on the lease page) and `lease.currentBalance` (tenant ledger, future TPast Due). `rv_live_lease()`
 reads the record, then the search (filter tried as `leaseID`, `leaseIDs`, then `unitID`, matching the row by leaseID);
 Current deposit = depositBalance with `deposit_source='ledger'`, the ledger balance is logged in `rent_from_rentvine`.
+**Sep 25: version pill.** `RNW_REV` (lib/core.php) is a hand-bumped release counter and stayed at 6 for 21 releases;
+set to 27 (= releases so far) and **bump it by one in every commit that ships**. The `app.css` / `app.js` cache-buster
+no longer depends on it: `asset_v()` = `RNW_REV.<file mtime>`, so browsers pick up new styles after every deploy.

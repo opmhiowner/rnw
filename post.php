@@ -17,7 +17,7 @@ $me = require_login();
 <title>Renewal Center — Post to Rentvine</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=<?= RNW_REV ?>">
+<link rel="stylesheet" href="assets/app.css?v=<?= asset_v("assets/app.css") ?>">
 <style>
   .ptbl { border:1px solid var(--hair); border-radius:10px; overflow:auto; flex:1; min-height:0; background:#fff; }
   table.set { border-collapse:collapse; width:100%; font-size:12px; }
@@ -103,7 +103,7 @@ $me = require_login();
   </div>
 </div>
 <div id="modal" class="modal hide"><div class="box" id="modal-box"></div></div>
-<script src="assets/app.js?v=<?= RNW_REV ?>"></script>
+<script src="assets/app.js?v=<?= asset_v("assets/app.js") ?>"></script>
 <script>
 (() => {
   const { api, bus, display, fmt, toast, LS } = RC;

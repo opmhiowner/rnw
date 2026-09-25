@@ -23,7 +23,13 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 6;
+const RNW_REV = 27;
+// Cache-buster for app.css / app.js: the file's own mtime, so a browser never keeps an old
+// stylesheet after a deploy even when the release counter above was not bumped.
+function asset_v(string $rel): string {
+    $f = RNW_ROOT . '/' . $rel;
+    return RNW_REV . '.' . (is_file($f) ? (string)filemtime($f) : '0');
+}
 function rnw_version(): string {
     $r = RNW_REV;
     if ($r < 100) { return '.' . $r; }

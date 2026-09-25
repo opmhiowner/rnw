@@ -15,7 +15,7 @@ $me = require_login();
 <title>Renewal Center — Media</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/app.css?v=<?= RNW_REV ?>">
+<link rel="stylesheet" href="assets/app.css?v=<?= asset_v("assets/app.css") ?>">
 </head>
 <body>
 <div class="shell col" style="background:#fff">
@@ -54,7 +54,7 @@ $me = require_login();
     </div>
   </div>
 </div>
-<script src="assets/app.js?v=<?= RNW_REV ?>"></script>
+<script src="assets/app.js?v=<?= asset_v("assets/app.js") ?>"></script>
 <script>
 (() => {
   const { api, bus, display, photoAgent, fmt, toast } = RC;
