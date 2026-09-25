@@ -233,7 +233,8 @@ AC, TMK, PM, addendum terms) are read-only lines on the FileMaker card. **Not in
 "Renewal Special" text (pv009c has it in FileMaker, `rnw_remarks` is NULL), Evaluation Top/Recom/Bottom, the
 RENEWALS.PERM per-property history rows - those stay Renewal's own (`renewal_property.special`, decisions).
 **Sep 25 (Larry): the fmp_ import was one-time**, so the fmp_ tables are the live copy and Main writes to them.
-"All FileMaker data…" on the card = generic viewer/editor over every `fmp_*` table for the pcode (`FMP_TABLES`,
+**Sep 25 (Larry): on the page, not behind a button** - the right-pane card is gone; Main's center pane ends with
+"FileMaker — this property" (`#fmp-section`, tab per table, remembered in localStorage) = generic viewer/editor over every `fmp_*` table for the pcode (`FMP_TABLES`,
 `fmp_schema` from SHOW COLUMNS, kinds ro/date/datetime/num/long/text, `fmp_all` / `fmp_row_save` by row id +
 office; tables without `property_code` are listed with a note). Renewal Special / Evaluation / history stay
 Renewal's own.

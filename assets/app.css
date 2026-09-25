@@ -186,3 +186,8 @@ kbd { font-family:var(--mono); font-size:11px; background:var(--field); border:1
 .pane { min-width:0; }
 #fmp-prop, #fmp-prop span { overflow-wrap:anywhere; }
 #fmp-fields .in { min-width:0; }
+
+/* FileMaker section on Main: label / value pairs in two columns, long text across */
+.fmpkv { grid-template-columns:150px minmax(0,1fr) 150px minmax(0,1fr); font-size:12px; }
+.fmpkv label { overflow-wrap:anywhere; }
+.narrow .fmpkv { grid-template-columns:150px minmax(0,1fr); }

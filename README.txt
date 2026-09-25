@@ -347,31 +347,21 @@ OPEN FROM FILEMAKER (v.6 - the SEV Center pattern)
   settings, when filled in, win.
 
 FILEMAKER DATA ON THE SAME DATABASE (v.6)
-  The renewal file's own records are on oishi-db as fmp_renewals
-  (one row per property code, plus the other fmp_* tables). Main
-  shows them in the right pane as "FileMaker renewal record":
-  last inspected / by / time / type, property and tenant grade,
-  recommended rent, lease yrs, ASD, the X box, IA and OA (date,
-  dropdown, story) and remarks. Edit and press "Save FileMaker
-  fields" (or Enter inside one of them): the fmp_renewals row is
-  updated in place, or created when FileMaker never had one for
-  that pcode. Saving the decision (Enter elsewhere) does not touch
-  it. Every save is logged in renewal_events as fmp_save.
-  Also from FileMaker's other files (same rule: shown until you type
-  your own, and what you save is written back to FileMaker's row too):
+  The FileMaker files were loaded once into oishi-db as fmp_* tables
+  (renewals, properties, marketing, owners, tenant contacts,
+  collections, deposit refund, vacancy, inventory, keys ...), one
+  row per property code. That load was one-time (Larry, Sep 25), so
+  these tables are now the live copy and Main is where they are
+  kept. On Main, under the same-building rent history, the section
+  "FileMaker - this property" shows a tab per table with every
+  column the import carried, one form per row. Edit and press
+  "Save row" (or Enter in a field): the row is written back. Columns
+  come from the table itself, so nothing is hard-coded; id / office /
+  property code / import stamp are read-only.
+  Two of those fields also feed the app until you type your own,
+  and what you save is written back to FileMaker's row too:
     Building / AOAO box     fmp_properties.aoao
     Media listing text      fmp_marketing ad copy (f_12_adcopy1_rent_util_online)
-  Read-only on the card: the property file (class, grade, area, HSA /
-  HNA area, bd/ba, parking, sqft, laundry, AC, water, TMK, PM, addendum
-  terms) and marketing (rent history, ad rent, utilities).
   NOT in the imported tables: the pink "Renewal Special" text, the
   Evaluation boxes and the per-property renewal history rows. Those
   live in Renewal Center only (renewal_property / renewal_decisions).
-  ALL OF IT: "All FileMaker data..." on the card opens every fmp_
-  table for the property (renewals, property, marketing, owner,
-  tenant contacts, collections, deposit refund, vacancy, inventory,
-  keys ...) with every column the import carried, one form per row,
-  "Save row" writes it back. Columns come from the table itself, so
-  nothing is hard-coded; id / office / property code / import stamp
-  are read-only. The import was a one-time load (Larry, Sep 25), so
-  these tables are now the live copy and Main is where they are kept.

@@ -153,6 +153,12 @@ $me = require_login();
             <div id="hist"></div>
           </div>
         </div>
+        <!-- FileMaker: every fmp_ table for this property, on the page, editable. One-time import = live copy. -->
+        <div style="display:flex;flex-direction:column;gap:8px" id="fmp-section" class="hide">
+          <div class="row between"><span class="label">FileMaker — this property</span><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
+          <div class="chips" id="fmp-tabs"></div>
+          <div id="fmp-body" style="display:flex;flex-direction:column;gap:10px"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -172,12 +178,6 @@ $me = require_login();
         <h3>Rentvine</h3>
         <div style="font-size:12px;color:var(--ink2)" id="rv-state">Not posted.</div>
         <div class="row"><button class="btn sm" id="btn-rv-plan">Preview the 4 steps</button><button class="btn sm" id="btn-events">Activity</button></div>
-      </div>
-      <div class="card white hide" id="fmp-card">
-        <div class="row between"><h3>FileMaker renewal record</h3><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
-        <div id="fmp-prop" style="font-size:12px;display:flex;flex-direction:column;gap:3px;line-height:1.5"></div>
-        <div class="kv" id="fmp-fields" style="font-size:12px"></div>
-        <div class="row between"><button class="btn sm" id="btn-fmp-all">All FileMaker data…</button><button class="btn sm pri" id="btn-fmp-save">Save FileMaker fields</button></div>
       </div>
       <div class="card white">
         <h3>Past renewals</h3>
@@ -429,79 +429,49 @@ $me = require_login();
     if (n) pick(n.lease_id);
   }
 
-  // ---------- the FileMaker renewal record (fmp_renewals, by pcode): shown and edited here
-  function renderFmp() {
-    const F = S.rec.fmp || {};
-    $('fmp-card').classList.toggle('hide', !F.ready);
-    if (!F.ready) return;
-    const row = F.row || {};
-    $('fmp-when').textContent = row.imported_at ? 'imported ' + String(row.imported_at).slice(0, 10) : 'no FileMaker row for this pcode yet';
-    const P = F.property, M = F.marketing;
-    const line = (pairs) => pairs.filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '').map(([l, v]) => `<span><span class="muted">${l}</span> ${fmt.esc(String(v))}</span>`).join(' · ');
-    $('fmp-prop').innerHTML = (P ? '<div><strong>Property file</strong> ' + line([['class', P.class && Number(P.class)], ['grade', P.grade], ['mo/pm', P.grade_mopm], ['area', P.area], ['HSA', P.hsa_area], ['HNA', P.hna_area], ['block', P.block],
-        ['bd/ba', P.bd !== null && P.bd !== undefined ? Number(P.bd) + '/' + (P.ba !== null ? Number(P.ba) : '?') : null], ['pk', P.pk], ['sqft', P.sqft && Number(P.sqft)], ['furn', P.furn], ['laundry', P.laundry], ['AC', P.ac], ['water', P.water], ['TMK', P.tmk], ['PM', P.pm], ['RM', P.resident_manager]]) + '</div>' : '')
-      + (P && P.addendum_terms ? `<div><span class="muted">Addendum terms</span> ${fmt.esc(P.addendum_terms)}</div>` : '')
-      + (M ? '<div><strong>Marketing</strong> ' + line([['rent history', M.rent_history], ['ad rent', M.rent && fmt.money(M.rent)], ['util', M.util], ['approval', M.approval_manager], ['Rently', M.rently_id]]) + '</div>' : '')
-      || '<span class="muted">no property / marketing row in FileMaker for this pcode</span>';
-    $('fmp-fields').innerHTML = Object.entries(F.fields).map(([k, [label, kind]]) => {
-      const v = row[k] === null || row[k] === undefined ? '' : String(row[k]);
-      if (kind === 'ro') return v ? `<label>${fmt.esc(label)}</label><span class="muted">${fmt.esc(v)}</span>` : '';
-      if (kind === 'long') return `<label>${fmt.esc(label)}</label><textarea class="in" data-fmp="${k}" rows="2">${fmt.esc(v)}</textarea>`;
-      const type = kind === 'date' ? 'date' : (kind === 'num' ? 'number' : 'text');
-      const val = kind === 'date' ? v.slice(0, 10) : (kind === 'num' && v !== '' ? String(Number(v)) : v);
-      return `<label>${fmt.esc(label)}</label><input class="in" data-fmp="${k}" type="${type}" ${kind === 'num' ? 'step="0.01"' : ''} value="${fmt.esc(val)}">`;
-    }).join('');
-    $('fmp-fields').querySelectorAll('[data-fmp]').forEach(i => i.addEventListener('input', () => { $('btn-fmp-save').textContent = 'Save FileMaker fields •'; }));
-    $('btn-fmp-save').disabled = !!S.rec.finalized; $('btn-fmp-save').textContent = 'Save FileMaker fields';
-  }
-  $('btn-fmp-save').onclick = async () => {
-    if (!S.sel) return;
-    const fields = {}; $('fmp-fields').querySelectorAll('[data-fmp]').forEach(i => fields[i.dataset.fmp] = i.value);
-    const j = await api('fmp_save', { lease_id: S.sel, cycle: S.cycle, fields });
-    if (!j.ok) { toast(j.error, true); return; }
-    S.rec.fmp = j.fmp; renderFmp(); toast('FileMaker record saved');
-  };
-
-  // every fmp_ table for this property, all columns, editable per row
-  $('btn-fmp-all').onclick = async () => {
-    if (!S.sel) return;
-    const j = await api('fmp_all', { lease_id: S.sel });
-    if (!j.ok) { toast(j.error, true); return; }
-    const keys = Object.keys(j.tables);
+  // ---------- FileMaker: every fmp_ table for this property, inline, one form per row, Save row writes it back
+  let fmpTab = LS('renewal.fmptab') || 'renewals';
+  async function renderFmp() {
+    const sel = S.sel;
+    const j = await api('fmp_all', { lease_id: sel });
+    if (S.sel !== sel) return;
+    const keys = j.ok ? Object.keys(j.tables) : [];
+    $('fmp-section').classList.toggle('hide', !keys.length);
+    if (!keys.length) return;
+    const stamp = keys.map(k => (j.tables[k].rows[0] || {}).imported_at).find(Boolean);
+    $('fmp-when').textContent = (stamp ? 'imported ' + String(stamp).slice(0, 10) + ' · ' : '') + 'edited here from now on';
     const field = (c, v) => {
       const val = v === null || v === undefined ? '' : String(v);
       if (c.kind === 'ro') return `<label>${fmt.esc(c.label)}</label><span class="muted mono" style="font-size:11px">${fmt.esc(val)}</span>`;
-      if (c.kind === 'long') return `<label>${fmt.esc(c.label)}</label><textarea class="in" data-col="${c.name}" rows="3">${fmt.esc(val)}</textarea>`;
+      if (c.kind === 'long') return `<label>${fmt.esc(c.label)}</label><textarea class="in" data-col="${c.name}" rows="2" style="grid-column:2 / -1">${fmt.esc(val)}</textarea>`;
       const type = c.kind === 'date' ? 'date' : (c.kind === 'num' ? 'number' : 'text');
       const shown = c.kind === 'date' ? val.slice(0, 10) : (c.kind === 'datetime' ? val : (c.kind === 'num' && val !== '' ? String(Number(val)) : val));
       return `<label>${fmt.esc(c.label)}</label><input class="in" data-col="${c.name}" type="${type}" ${c.kind === 'num' ? 'step="any"' : ''} value="${fmt.esc(shown)}">`;
     };
-    const tab = (k) => { const t = j.tables[k]; return `<div class="fmp-tab" data-tab="${k}" style="display:none">
-      ${t.note ? `<div class="muted">${fmt.esc(t.note)}</div>` : ''}
-      ${t.rows.length ? t.rows.map(r => `<div class="fmp-row card white" data-id="${r.id}" data-table="${k}"><div class="row between"><strong>${fmt.esc(t.label)} · row ${r.id}</strong><button class="btn xs pri fmp-row-save">Save row</button></div>
-        <div class="kv" style="grid-template-columns:200px 1fr">${t.schema.map(c => field(c, r[c.name])).join('')}</div></div>`).join('')
-        : (t.note ? '' : '<div class="muted">No row for this property in FileMaker.</div>')}</div>`; };
-    openModal(`<h2>FileMaker · ${fmt.esc(j.pcode)} <span class="muted" style="font-size:12px;font-weight:400">one-time import on oishi-db, edited here from now on</span></h2>
-      <div class="chips" id="fmp-tabs">${keys.map(k => `<button class="btn xs" data-t="${k}">${fmt.esc(j.tables[k].label)} · ${j.tables[k].rows.length}</button>`).join('')}</div>
-      <div id="fmp-body" style="max-height:62vh;overflow:auto;display:flex;flex-direction:column;gap:10px">${keys.map(tab).join('')}</div>
-      <div class="row" style="justify-content:flex-end"><button class="btn" id="m-close">Close</button></div>`);
-    $('m-close').onclick = closeModal;
-    const show = (k) => { $('fmp-body').querySelectorAll('.fmp-tab').forEach(d => d.style.display = d.dataset.tab === k ? '' : 'none'); $('fmp-tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === k)); };
-    $('fmp-tabs').querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.t));
-    show(keys.find(k => j.tables[k].rows.length) || keys[0]);
+    $('fmp-tabs').innerHTML = keys.map(k => `<button class="btn xs ${k === fmpTab ? 'on' : ''}" data-t="${k}">${fmt.esc(j.tables[k].label)} · ${j.tables[k].rows.length}</button>`).join('');
+    if (!j.tables[fmpTab]) fmpTab = keys[0];
+    const t = j.tables[fmpTab];
+    $('fmp-body').innerHTML = (t.note ? `<div class="muted">${fmt.esc(t.note)}</div>` : '')
+      + (t.rows.length ? t.rows.map(r => `<div class="fmp-row card" data-id="${r.id}" data-table="${fmpTab}">
+          <div class="row between"><strong style="font-size:12px">${fmt.esc(t.label)}${t.rows.length > 1 ? ' · row ' + r.id : ''}</strong><button class="btn xs pri fmp-row-save" ${S.rec.finalized ? 'disabled' : ''}>Save row</button></div>
+          <div class="kv fmpkv">${t.schema.filter(c => c.kind !== 'ro' || (c.name !== 'company_id' && c.name !== 'office_id' && c.name !== 'id')).map(c => field(c, r[c.name])).join('')}</div></div>`).join('')
+        : (t.note ? '' : '<div class="muted">No row for this property in FileMaker.</div>'));
+    $('fmp-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { fmpTab = b.dataset.t; LS('renewal.fmptab', fmpTab); renderFmp(); });
     $('fmp-body').querySelectorAll('.fmp-row-save').forEach(btn => btn.onclick = async () => {
       const box = btn.closest('.fmp-row'); const fields = {}; box.querySelectorAll('[data-col]').forEach(i => fields[i.dataset.col] = i.value);
       btn.disabled = true; const r = await api('fmp_row_save', { table: box.dataset.table, id: Number(box.dataset.id), fields }); btn.disabled = false;
       if (!r.ok) { toast(r.error, true); return; }
-      toast('Saved to FileMaker table'); if (box.dataset.table === 'renewals' || box.dataset.table === 'properties' || box.dataset.table === 'marketing') pick(S.sel);
+      btn.textContent = 'Save row'; toast('Saved to FileMaker');
+      if (['properties', 'marketing'].includes(box.dataset.table)) pick(S.sel);   // VAOAO / listing text may have changed
     });
-  };
+    $('fmp-body').querySelectorAll('[data-col]').forEach(i => i.addEventListener('input', () => { i.closest('.fmp-row').querySelector('.fmp-row-save').textContent = 'Save row •'; }));
+  }
 
   // ---------- keys: Enter = Save, ← → = prev/next (outside text areas)
   document.addEventListener('keydown', (e) => {
     const tag = (e.target.tagName || '').toLowerCase();
     if (!$('modal').classList.contains('hide')) { if (e.key === 'Escape') closeModal(); return; }
-    if (e.key === 'Enter' && tag !== 'textarea' && tag !== 'button') { e.preventDefault(); if (e.target.dataset && e.target.dataset.fmp !== undefined) $('btn-fmp-save').click(); else save(false); }
+    if (e.key === 'Enter' && tag !== 'textarea' && tag !== 'button') { e.preventDefault(); if (e.target.dataset && e.target.dataset.col !== undefined) e.target.closest('.fmp-row').querySelector('.fmp-row-save').click(); else save(false); }
     if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && tag !== 'input' && tag !== 'textarea' && tag !== 'select') { e.preventDefault(); next(e.key === 'ArrowRight' ? 1 : -1); }
   });
 
