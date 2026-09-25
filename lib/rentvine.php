@@ -272,30 +272,39 @@ function rv_live_lease(string $leaseId): ?array {
     if (!$r['ok'] || !is_array($r['json'])) { return ['rent' => null, 'deposit' => null, 'keys' => [], 'error' => ($r['error'] ?: 'HTTP ' . $r['code']) . ' for ' . $c['base'] . '/leases/' . $leaseId]; }
     $j = $r['json'];
     $L = isset($j['lease']) && is_array($j['lease']) ? $j['lease'] : $j;
-    $depKeys = ['securityDepositBalance', 'securityBalance', 'securityDeposit', 'securityDepositAmount', 'depositBalance', 'depositHeld', 'balances.securityDeposit', 'balances.security', 'balances.securityDepositBalance'];
-    $deposit = sx_num($L, $depKeys) ?? sx_num($j, $depKeys);
+    $depKeys = ['depositBalance', 'securityDepositBalance', 'securityBalance', 'securityDeposit', 'securityDepositAmount', 'depositHeld'];
+    $deposit = sx_num($L, $depKeys);
+    $balance = sx_num($L, ['currentBalance']);
     $tried = [];
     if ($deposit === null) {
-        // Rentvine's "Balance Information" (security deposit held) is not on the lease record:
-        // ask the balance endpoints in turn and remember which one answered
-        foreach (['/leases/' . rawurlencode($leaseId) . '/balances', '/leases/' . rawurlencode($leaseId) . '/balance',
-                  '/leases/' . rawurlencode($leaseId) . '/deposits', '/leases/' . rawurlencode($leaseId) . '/security-deposits',
-                  '/leases/' . rawurlencode($leaseId) . '/ledger/balances', '/leases/' . rawurlencode($leaseId) . '/summary'] as $path) {
-            $b = rv_call('GET', $c['base'] . $path, null, 12);
-            $tried[$path] = $b['ok'] ? ('200: ' . mb_substr(preg_replace('/\s+/', ' ', (string)$b['body']), 0, 400)) : ($b['error'] ?: 'HTTP ' . $b['code']);
-            if ($b['ok'] && is_array($b['json'])) {
-                $deposit = sx_num($b['json'], $depKeys) ?? sx_num($b['json'], ['securityDeposit.balance', 'deposit', 'security']);
-                if ($deposit === null) {   // any key that mentions security / deposit and holds a number
-                    $flat = json_encode($b['json']);
-                    if (preg_match('/"([A-Za-z]*(?:[Ss]ecurity|[Dd]eposit)[A-Za-z]*)"\s*:\s*"?(-?\d+(?:\.\d+)?)"?/', $flat, $m)) { $deposit = (float)$m[2]; $tried[$path] .= ' -> ' . $m[1]; }
-                }
-                if ($deposit !== null) { break; }
+        // The lease record has no balances. Rentvine's lease SEARCH returns them when asked
+        // (includeBalances=true): lease.depositBalance = the security deposit held ("Security
+        // Balance" on the lease page), lease.currentBalance = the tenant's ledger balance.
+        // The filter parameter is not documented, so ask by lease id, then by unit, and take
+        // the row whose leaseID matches.
+        $cands = ['leaseID=' . rawurlencode($leaseId), 'leaseIDs=' . rawurlencode($leaseId)];
+        $unit = trim((string)($L['unitID'] ?? ''));
+        if ($unit !== '') { $cands[] = 'unitID=' . rawurlencode($unit); }
+        foreach ($cands as $qs) {
+            $path = '/leases/search?includeBalances=true&pageSize=50&page=1&' . $qs;
+            $b = rv_call('GET', $c['base'] . $path, null, 15);
+            if (!$b['ok'] || !is_array($b['json'])) { $tried[$path] = $b['error'] ?: 'HTTP ' . $b['code']; continue; }
+            $rows = isset($b['json']['lease']) ? [$b['json']] : (array_is_list($b['json']) ? $b['json'] : ($b['json']['results'] ?? $b['json']['data'] ?? []));
+            $hit = null;
+            foreach ($rows as $row) {
+                $lr = is_array($row) && isset($row['lease']) && is_array($row['lease']) ? $row['lease'] : $row;
+                if (is_array($lr) && (string)($lr['leaseID'] ?? '') === (string)$leaseId) { $hit = $lr; break; }
             }
+            if (!$hit) { $tried[$path] = '200: ' . count($rows) . ' rows, lease ' . $leaseId . ' not among them'; continue; }
+            $deposit = sx_num($hit, $depKeys);
+            $balance = $balance ?? sx_num($hit, ['currentBalance']);
+            $tried[$path] = '200: depositBalance=' . var_export($hit['depositBalance'] ?? null, true) . ' currentBalance=' . var_export($hit['currentBalance'] ?? null, true);
+            if ($deposit !== null) { break; }
         }
     }
     return [
-        'rent'    => sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent']) ?? sx_num($j, ['actualRentAmount', 'rentAmount', 'rent']),
-        'deposit' => $deposit,
+        'rent'    => sx_num($L, ['rentAmount', 'actualRentAmount', 'actualRent', 'rent', 'monthlyRent', 'baseRentAmount']),
+        'deposit' => $deposit, 'balance' => $balance,
         'keys'    => array_slice(array_keys($L), 0, 60), 'top_keys' => array_keys($j), 'tried' => $tried,
     ];
 }

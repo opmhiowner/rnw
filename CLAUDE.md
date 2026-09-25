@@ -279,3 +279,9 @@ keys and records `rent_source` / `deposit_source` ('lease' | 'unit'); `rent_back
 whose rent is not yet 'charge' (or deposit not 'ledger'), at most once a day (`rent_checked_at`), taking the live rent
 charge amount (`rv_live_rent_charge`) and the live lease's deposit (`rv_live_lease`, tolerant keys, key names logged in
 the `rent_from_rentvine` event for confirmation); pct / SDR recomputed. Main shows the source under Current rent.
+
+**Sep 25: security deposit from Rentvine.** The lease record (`GET /leases/{id}`) carries `rentAmount` but no balances;
+the lease **search** does when asked: `GET /leases/search?includeBalances=true&leaseID={id}` → `lease.depositBalance`
+(the "Security Balance" on the lease page) and `lease.currentBalance` (tenant ledger, future TPast Due). `rv_live_lease()`
+reads the record, then the search (filter tried as `leaseID`, `leaseIDs`, then `unitID`, matching the row by leaseID);
+Current deposit = depositBalance with `deposit_source='ledger'`, the ledger balance is logged in `rent_from_rentvine`.

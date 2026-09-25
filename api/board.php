@@ -120,7 +120,7 @@ function rent_backfill(array &$q, array $L): void {
         $set[] = 'current_deposit = ?'; $vals[] = $dep;
         $set[] = "deposit_source = 'ledger'";
         if ($q['new_deposit'] !== null) { $set[] = 'sdr_delta = ?'; $vals[] = max(0.0, (float)$q['new_deposit'] - $dep); }
-        $detail['deposit'] = $dep;
+        $detail['deposit'] = $dep; if (isset($live['balance'])) { $detail['balance'] = $live['balance']; }
     }
     if ($live) { $detail['lease_keys'] = $live['keys']; }
     $vals[] = $q['id'];
