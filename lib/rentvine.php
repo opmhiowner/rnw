@@ -272,11 +272,31 @@ function rv_live_lease(string $leaseId): ?array {
     if (!$r['ok'] || !is_array($r['json'])) { return ['rent' => null, 'deposit' => null, 'keys' => [], 'error' => ($r['error'] ?: 'HTTP ' . $r['code']) . ' for ' . $c['base'] . '/leases/' . $leaseId]; }
     $j = $r['json'];
     $L = isset($j['lease']) && is_array($j['lease']) ? $j['lease'] : $j;
+    $depKeys = ['securityDepositBalance', 'securityBalance', 'securityDeposit', 'securityDepositAmount', 'depositBalance', 'depositHeld', 'balances.securityDeposit', 'balances.security', 'balances.securityDepositBalance'];
+    $deposit = sx_num($L, $depKeys) ?? sx_num($j, $depKeys);
+    $tried = [];
+    if ($deposit === null) {
+        // Rentvine's "Balance Information" (security deposit held) is not on the lease record:
+        // ask the balance endpoints in turn and remember which one answered
+        foreach (['/leases/' . rawurlencode($leaseId) . '/balances', '/leases/' . rawurlencode($leaseId) . '/balance',
+                  '/leases/' . rawurlencode($leaseId) . '/deposits', '/leases/' . rawurlencode($leaseId) . '/security-deposits',
+                  '/leases/' . rawurlencode($leaseId) . '/ledger/balances', '/leases/' . rawurlencode($leaseId) . '/summary'] as $path) {
+            $b = rv_call('GET', $c['base'] . $path, null, 12);
+            $tried[$path] = $b['ok'] ? ('200: ' . mb_substr(preg_replace('/\s+/', ' ', (string)$b['body']), 0, 400)) : ($b['error'] ?: 'HTTP ' . $b['code']);
+            if ($b['ok'] && is_array($b['json'])) {
+                $deposit = sx_num($b['json'], $depKeys) ?? sx_num($b['json'], ['securityDeposit.balance', 'deposit', 'security']);
+                if ($deposit === null) {   // any key that mentions security / deposit and holds a number
+                    $flat = json_encode($b['json']);
+                    if (preg_match('/"([A-Za-z]*(?:[Ss]ecurity|[Dd]eposit)[A-Za-z]*)"\s*:\s*"?(-?\d+(?:\.\d+)?)"?/', $flat, $m)) { $deposit = (float)$m[2]; $tried[$path] .= ' -> ' . $m[1]; }
+                }
+                if ($deposit !== null) { break; }
+            }
+        }
+    }
     return [
         'rent'    => sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent']) ?? sx_num($j, ['actualRentAmount', 'rentAmount', 'rent']),
-        'deposit' => sx_num($L, ['securityDepositBalance', 'securityBalance', 'securityDeposit', 'securityDepositAmount', 'depositBalance', 'depositHeld'])
-                  ?? sx_num($j, ['securityDepositBalance', 'securityBalance', 'balances.securityDeposit', 'balances.security', 'securityDeposit']),
-        'keys'    => array_slice(array_keys($L), 0, 60),
+        'deposit' => $deposit,
+        'keys'    => array_slice(array_keys($L), 0, 60), 'top_keys' => array_keys($j), 'tried' => $tried,
     ];
 }
 function rv_live_rent_charge(string $leaseId, ?string &$why = null): ?array {

@@ -187,7 +187,9 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     }
     if (!$q) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in cycle ' . $cycle . '.']); }
     rent_backfill($q, $L);
-    if ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }
+    if (($q['rent_source'] ?? '') === 'charge' && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'Rentvine rent charge ' . ($q['rv_old_charge_id'] ?? ''); }
+    elseif ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }
+    if (($q['deposit_source'] ?? '') === 'ledger' && $q['current_deposit'] !== null) { $L['deposit'] = (float)$q['current_deposit']; }
     $q['pinned_comps'] = json_decode((string)($q['pinned_comps'] ?? ''), true) ?: [];
     $cfg = function (array $x): string {        // FileMaker's 11.PF/F.BD.PK.Util: type - bd / ba / pk
         $fp = fmp_property((string)$x['pcode']);
@@ -568,7 +570,7 @@ case 'rent_refresh': {
         $set[] = 'current_deposit = ?'; $vals[] = $dep; $set[] = "deposit_source = 'ledger'";
         if ($q['new_deposit'] !== null) { $set[] = 'sdr_delta = ?'; $vals[] = max(0.0, (float)$q['new_deposit'] - $dep); }
         $msg[] = 'deposit $' . number_format($dep, 2);
-    } else { $msg[] = 'deposit: ' . (!empty($live['error']) ? $live['error'] : ('not in the lease record' . ($live ? ' (keys: ' . implode(', ', array_slice($live['keys'], 0, 25)) . ')' : ''))); }
+    } else { $msg[] = 'deposit: ' . (!empty($live['error']) ? $live['error'] : ('not found. lease top-level keys: ' . implode(', ', $live['top_keys'] ?? []) . ' · tried: ' . implode(' | ', array_map(fn($k, $v) => $k . ' = ' . $v, array_keys($live['tried'] ?? []), $live['tried'] ?? [])))); }
     $vals[] = $q['id'];
     db()->prepare("UPDATE renewal_decisions SET " . implode(', ', $set) . " WHERE id = ?")->execute($vals);
     log_event((int)$q['id'], ($pick || ($live && $live['deposit'] !== null)) ? 'rent_from_rentvine' : 'rent_check_failed', ['lease_id' => $id, 'detail' => ['manual' => true, 'result' => $msg, 'why' => $why, 'lease_keys' => $live['keys'] ?? null]]);
