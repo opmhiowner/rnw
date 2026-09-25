@@ -57,6 +57,8 @@ declare(strict_types=1);
 //   The endDate belongs to the EXISTING rent charge only (the expire step); the new
 //   charge is created with endDate null. The lease's own end date is not touched.
 // Every call below is verified. Settings can still override any of them.
+const RV_DEFAULT_BASE = 'https://oishispm.rentvine.com/api/manager';   // verified Sep 21-22 against FileMaker's working calls
+
 function rv_templates_default(): array {
     return [
         'rv_charges_list_url'   => '{base}/leases/{lease_id}/recurring-charges',
@@ -134,6 +136,11 @@ function rv_creds(): array {
         $c['source'] = $c['key'] !== '' ? 'settings' : 'none';
     }
     if ((string)setting('rv_base', '') !== '') { $c['base'] = rtrim((string)setting('rv_base'), '/'); }
+    // Sync Center's credential record can carry something that is not a URL in its base field
+    // (seen live: an e-mail address). Anything without a scheme is ignored and the verified
+    // Rentvine manager API root is used (Settings > Rentvine > Base URL override still wins).
+    if ($c['base'] !== '' && !preg_match('#^https?://#i', $c['base'])) { $c['base_ignored'] = $c['base']; $c['base'] = ''; }
+    if ($c['base'] === '') { $c['base'] = RV_DEFAULT_BASE; }
     return $c;
 }
 
