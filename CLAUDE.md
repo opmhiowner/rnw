@@ -260,3 +260,9 @@ mirror), FileMaker's per-property renewal history rows (never exported), Last Tr
 labels "Listing" and "Rent history" without "FileMaker"; right-pane "Renewal history" = this app's posted renewals in
 FileMaker's RENEWALS.PERM shape (date | new rent green | ASD, tenure yrs on top, no status tag); rent card type at
 FileMaker size (money 32 px, ranges 28 px bold, deposits 24 px, pink rent-history strip 18 px). Fit: 1080p → 112 %.
+
+**Sep 25 (Larry): bigger type across Main** (evaluation, lease, notes, listing, tables, right pane; see the
+`html.main-window` block at the end of app.css) with the right pane compacted so it still fits one screen: linked
+header one line, Rentvine buttons in the title row, one line per SEV video, move-out + contact in one card, the
+"pin comps" hint hidden until comps exist; `fitMain()` now checks the right pane too. Measured: 1080p → 103 %,
+1440×900 → 82 %. Open: Rentvine propertyTypeID names beyond 2 = HOUSE (the set table shows "type 3/4").

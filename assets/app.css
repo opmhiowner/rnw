@@ -239,3 +239,41 @@ html.main-window #mtm-note { font-size:13px; }
 html.main-window #r-basis { font-size:12px !important; }
 html.main-window #fm-rent-history { font-size:16px !important; }
 html.main-window #fm-rent-history .mono { font-size:18px; font-weight:700; background:#fde2e2; padding:2px 8px; border-radius:4px; }   /* the pink RENT HISTORY strip */
+
+/* Main: bigger type everywhere else too (Larry, Sep 25) - evaluation, lease, notes, listing, history, right pane */
+html.main-window .card h3 { font-size:15px; }
+html.main-window .label { font-size:13px; }
+html.main-window .card .fld strong { font-size:16px; }
+html.main-window #lease-grid { font-size:15px !important; gap:10px 14px !important; }
+html.main-window #last-renewal, html.main-window #last-insp { font-size:14px !important; }
+html.main-window .card.eval .in.sm, html.main-window #f-prop-vaoao { font-size:17px; height:40px; }
+html.main-window .card.eval .chk { font-size:15px; }
+html.main-window .card.eval .chk input { width:18px; height:18px; }
+html.main-window #f-cat-override { font-size:14px; height:36px !important; }
+html.main-window .notes-row textarea.in, html.main-window .notes-row .in.sm { font-size:16px; }
+html.main-window .notes-row textarea.in { height:46px !important; }
+html.main-window #listing { font-size:15px !important; line-height:1.5 !important; }
+html.main-window .tbl .tr { font-size:15px; padding:6px 12px; }
+html.main-window .tbl .tr.th { font-size:11px; }
+html.main-window .tbl.hist .tr { font-size:15px; }
+html.main-window #histbox { max-height:calc(4 * 33px + 4px); }
+html.main-window #fmp-tabs .btn.xs { font-size:13px; height:30px; padding:0 12px; }
+html.main-window .rec-head .h1 { font-size:24px; }
+html.main-window .rec-head .sub { font-size:15px; }
+html.main-window .tag.lg { font-size:12px; padding:3px 9px; }
+/* right pane */
+html.main-window .pane.right .card { gap:8px; }
+html.main-window .pane.right .card h3 { font-size:15px; }
+html.main-window #rv-state, html.main-window #contact { font-size:15px !important; }
+html.main-window #sev-kv { font-size:14px !important; grid-template-columns:125px 1fr !important; gap:4px 10px !important; }
+html.main-window #sev-videos { font-size:14px !important; }
+html.main-window #tracker, html.main-window #tracker + *, html.main-window .pane.right .row.between span { font-size:14px; }
+html.main-window .tbl.rhist .tr { font-size:16px; }
+html.main-window #tenure { font-size:17px !important; }
+html.main-window .pane.right .fld { font-size:13px; }
+html.main-window .pane.right .fld strong { font-size:16px; }
+html.main-window .pane.right .btn.sm { font-size:14px; height:34px; }
+html.main-window .followbar, html.main-window .pane.right .label { font-size:12px; }
+html.main-window .setstrip table { font-size:14px; }
+html.main-window .setstrip td { height:32px; }
+html.main-window .setstrip { max-height:calc(3 * 32px + 26px); }

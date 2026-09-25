@@ -168,19 +168,18 @@ $me = require_login();
 
   <!-- ============ RIGHT: context + actions ============ -->
   <div class="pane right">
-    <div class="head" style="padding:12px 16px;gap:8px">
-      <div class="label">Linked windows · follow this record</div>
-      <div class="links">
+    <div class="head" style="padding:8px 16px;gap:8px;flex-direction:row;align-items:center;flex-wrap:wrap">
+      <div class="label">Linked</div>
+      <div class="links" style="flex:1">
         <a href="media.php" target="rc-media" id="lnk-media"><span class="dot sm" id="dot-media"></span>Media — left monitor</a>
         <a href="comps.php" target="rc-comps" id="lnk-comps"><span class="dot sm" id="dot-comps"></span>Comps — right monitor</a>
       </div>
     </div>
-    <div class="body" style="padding:16px;display:flex;flex-direction:column;gap:14px">
-      <div class="strip" id="market">Pin comps on the Comps window to get a market check here.</div>
+    <div class="body" style="padding:12px 14px;display:flex;flex-direction:column;gap:10px">
+      <div class="strip hide" id="market">Pin comps on the Comps window to get a market check here.</div>
       <div class="card white">
-        <h3>Rentvine</h3>
+        <div class="row between" style="flex-wrap:wrap;gap:6px"><h3>Rentvine</h3><span class="row" style="gap:6px"><button class="btn sm" id="btn-rv-plan">Preview the 4 steps</button><button class="btn sm" id="btn-events">Activity</button></span></div>
         <div style="font-size:12px;color:var(--ink2)" id="rv-state">Not posted.</div>
-        <div class="row"><button class="btn sm" id="btn-rv-plan">Preview the 4 steps</button><button class="btn sm" id="btn-events">Activity</button></div>
       </div>
       <div class="card white">
         <div class="row between"><h3>Renewal history</h3><span class="mono" id="tenure" style="font-size:15px;font-weight:700"></span></div>
@@ -193,15 +192,11 @@ $me = require_login();
         <div class="row between" style="font-size:12px"><span><strong>Last Tracker</strong></span><span class="muted" id="tracker">scan lives on the office PC, not in the database</span></div>
       </div>
       <div class="card white">
-        <h3>Move-out</h3>
-        <div class="grid2" style="gap:8px;font-size:12px">
+        <div class="grid2" style="gap:8px 14px;font-size:12px">
           <div class="fld"><span>D move out</span><strong id="mo-date">—</strong></div>
           <div class="fld"><span>T. notice</span><strong id="mo-notice">—</strong></div>
+          <div class="fld" style="grid-column:1 / -1"><span>Contact</span><strong id="contact" style="font-weight:500">—</strong></div>
         </div>
-      </div>
-      <div class="card white">
-        <h3>Contact</h3>
-        <div style="font-size:12px;color:var(--ink2)" id="contact">—</div>
       </div>
     </div>
     <div class="actions">
@@ -362,7 +357,7 @@ $me = require_login();
       : kv('SEV date', last.sev_date ? fmt.date(last.sev_date) : (last.submitted_at ? fmt.date(last.submitted_at) : '')) + kv('Status', last.status + (SV.count > 1 ? ' · ' + SV.count + ' requests' : '')) + kv('SEV request', '#' + last.id + (last.legacy_record_no ? ' · FM ' + last.legacy_record_no : ''))
         + kv('Reviewed', last.reviewed_at ? fmt.date(last.reviewed_at) + (last.reviewed_by ? ' by ' + last.reviewed_by : '') : '')
         + kv('Ownit', last.ownit) + kv('Cr Mowo', last.cr_mowo) + kv('Lease signup', last.lease_signup) + kv('Approved by', last.approved_by));
-    $('sev-videos').innerHTML = (SV && SV.videos || []).map(v => `<a href="https://apps.oishis.net/sev/?id=${v.request_id}" target="_blank">▶ ${fmt.esc(v.filename || 'video ' + v.id)}</a> <span class="muted">${fmt.date(v.upload_completed_at || v.created_at)}${v.duration_seconds ? ' · ' + Math.round(v.duration_seconds) + ' s' : ''} · ${fmt.esc(v.status)}</span>`).join('');
+    $('sev-videos').innerHTML = (SV && SV.videos || []).slice(0, 4).map(v => `<div class="row between" style="gap:8px"><a href="https://apps.oishis.net/sev/?id=${v.request_id}" target="_blank" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">▶ ${fmt.esc(v.filename || 'video ' + v.id)}</a><span class="muted" style="white-space:nowrap">${fmt.dateShort(v.upload_completed_at || v.created_at)}${v.duration_seconds ? ' · ' + Math.round(v.duration_seconds) + ' s' : ''}</span></div>`).join('');
     // FileMaker on the record: last inspected, rent history line, the listing block
     const FR = (S.rec.fmp && S.rec.fmp.row) || {}, FP = (S.rec.fmp && S.rec.fmp.property) || {}, FM = (S.rec.fmp && S.rec.fmp.marketing) || {};
     $('last-insp').innerHTML = FR.rnw_insp_date ? `Last inspected <strong>${fmt.date(FR.rnw_insp_date)}</strong>${FR.rnw_insp_by ? ' by <strong>' + fmt.esc(FR.rnw_insp_by) + '</strong>' : ''}${FR.rnw_insp_type ? ' · ' + fmt.esc(FR.rnw_insp_type) : ''}${FR.rnw_insp_aft_p_grade || FR.rnw_insp_aft_t_grade ? ' · grade ' + fmt.esc(FR.rnw_insp_aft_p_grade || '?') + ' / ' + fmt.esc(FR.rnw_insp_aft_t_grade || '?') : ''}` : '<span class="muted">no inspection in FileMaker</span>';
@@ -532,7 +527,7 @@ $me = require_login();
   }, 5000);
   function renderMarket() {
     const q = S.rec.q, med = q.comp_median ? Number(q.comp_median) : null, nr = Number(q.new_rent || 0);
-    $('market').className = 'strip' + (med ? '' : ' warn');
+    $('market').className = 'strip' + (med ? '' : ' hide');   // only with pinned comps; the hint would just take room
     $('market').innerHTML = med ? `Comp median <strong>${fmt.money(med)}</strong> · new rent is <strong>${(nr / med * 100).toFixed(0)}%</strong> of median and <strong>${fmt.pct(q.pct_inc)}</strong> over current · ${(q.pinned_comps || []).length} pinned`
       : 'Pin comps on the Comps window to get a market check here.';
   }
@@ -653,7 +648,8 @@ $me = require_login();
     const base = Number(S.board && S.board.display.main_scale || 1.15);
     let z = base;
     document.documentElement.style.setProperty('--main-scale', String(z));
-    const over = () => $('recbody').scrollHeight > $('recbody').clientHeight + 2;
+    const rb = document.querySelector('.pane.right .body');
+    const over = () => $('recbody').scrollHeight > $('recbody').clientHeight + 2 || (rb && rb.scrollHeight > rb.clientHeight + 2);   // both panes must fit
     let n = 0;
     while (over() && z > 0.8 && n++ < 14) { z = Math.max(0.8, Math.round((z - 0.03) * 100) / 100); document.documentElement.style.setProperty('--main-scale', String(z)); }   // floor 80 %: a laptop still shrinks, a 1080p monitor never has to
     $('fitnote').textContent = z < base ? Math.round(z * 100) + ' %' : '';
