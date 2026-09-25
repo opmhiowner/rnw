@@ -288,3 +288,7 @@ Current deposit = depositBalance with `deposit_source='ledger'`, the ledger bala
 **Sep 25: version pill.** `RNW_REV` (lib/core.php) is a hand-bumped release counter and stayed at 6 for 21 releases;
 set to 27 (= releases so far) and **bump it by one in every commit that ships**. The `app.css` / `app.js` cache-buster
 no longer depends on it: `asset_v()` = `RNW_REV.<file mtime>`, so browsers pick up new styles after every deploy.
+**Sep 25 (Larry): Renewal Special loaded one-time by SQL, not by the app.** FileMaker's export (`all_swo.xlsx`: Ppty Code /
+Renewal Special, 274 properties) went into the field that already existed, `renewal_property.special` (the pink box on
+Main), as one paste-ready INSERT … ON DUPLICATE KEY UPDATE run in DBeaver (`updated_by = 'fmp-import'`, ids taken from the
+pv009c decision row, existing text kept). No importer in the app - the same SQL pattern serves any later one-time load.
