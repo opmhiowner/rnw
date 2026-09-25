@@ -497,6 +497,18 @@ case 'fmp_save': {
     log_event(null, 'fmp_save', ['lease_id' => $id, 'detail' => ['pcode' => $L['pcode'], 'fields' => array_keys((array)($in['fields'] ?? []))]]);
     json_out(['ok' => true, 'changed' => $r['changed']] + record_payload($id, $cycle, false));
 }
+case 'fmp_all': {
+    $id = trim((string)($in['lease_id'] ?? ''));
+    $L = lease_one($id);
+    if (!$L) { json_out(['ok' => false, 'error' => 'Unknown lease.']); }
+    json_out(['ok' => true, 'pcode' => $L['pcode'], 'tables' => fmp_all((string)$L['pcode'])]);
+}
+case 'fmp_row_save': {
+    $r = fmp_row_save((string)($in['table'] ?? ''), (int)($in['id'] ?? 0), (array)($in['fields'] ?? []));
+    if (!$r['ok']) { json_out($r); }
+    log_event(null, 'fmp_save', ['detail' => ['table' => $in['table'] ?? '', 'id' => (int)($in['id'] ?? 0), 'fields' => array_keys((array)($in['fields'] ?? []))]]);
+    json_out($r);
+}
 case 'rv_verify': {
     $id = trim((string)($in['lease_id'] ?? ''));
     $cycle = cyc($in);

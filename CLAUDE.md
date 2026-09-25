@@ -232,4 +232,8 @@ here; saving writes both `renewal_property.vaoao` and `fmp_properties.aoao`); **
 AC, TMK, PM, addendum terms) are read-only lines on the FileMaker card. **Not in any fmp_ table:** the pink
 "Renewal Special" text (pv009c has it in FileMaker, `rnw_remarks` is NULL), Evaluation Top/Recom/Bottom, the
 RENEWALS.PERM per-property history rows - those stay Renewal's own (`renewal_property.special`, decisions).
-**Open:** whether the fmp_ import re-runs (then Main's writes to fmp_ get overwritten; keep Renewal's copy the master).
+**Sep 25 (Larry): the fmp_ import was one-time**, so the fmp_ tables are the live copy and Main writes to them.
+"All FileMaker data…" on the card = generic viewer/editor over every `fmp_*` table for the pcode (`FMP_TABLES`,
+`fmp_schema` from SHOW COLUMNS, kinds ro/date/datetime/num/long/text, `fmp_all` / `fmp_row_save` by row id +
+office; tables without `property_code` are listed with a note). Renewal Special / Evaluation / history stay
+Renewal's own.

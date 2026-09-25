@@ -367,3 +367,11 @@ FILEMAKER DATA ON THE SAME DATABASE (v.6)
   NOT in the imported tables: the pink "Renewal Special" text, the
   Evaluation boxes and the per-property renewal history rows. Those
   live in Renewal Center only (renewal_property / renewal_decisions).
+  ALL OF IT: "All FileMaker data..." on the card opens every fmp_
+  table for the property (renewals, property, marketing, owner,
+  tenant contacts, collections, deposit refund, vacancy, inventory,
+  keys ...) with every column the import carried, one form per row,
+  "Save row" writes it back. Columns come from the table itself, so
+  nothing is hard-coded; id / office / property code / import stamp
+  are read-only. The import was a one-time load (Larry, Sep 25), so
+  these tables are now the live copy and Main is where they are kept.

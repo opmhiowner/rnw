@@ -118,3 +118,72 @@ function fmp_column_save(string $table, string $pcode, string $col, ?string $val
         return $st->rowCount() >= 0;
     } catch (Throwable $e) { return false; }
 }
+
+// ---------- every FileMaker table for a property, generic: columns come from
+// SHOW COLUMNS, so whatever the import carried is shown and editable. System
+// columns are read-only. Tables without a property_code column are skipped.
+const FMP_TABLES = [
+    'renewals' => 'Renewals', 'properties' => 'Property', 'marketing' => 'Marketing', 'owners' => 'Owner',
+    'tenant_contacts' => 'Tenant contacts', 'collections' => 'Collections', 'deposit_refund' => 'Deposit refund',
+    'vacancy' => 'Vacancy', 'inventory' => 'Inventory', 'inventory_items' => 'Inventory items', 'keys' => 'Keys', 'key_slots' => 'Key slots',
+];
+const FMP_SYSTEM_COLS = ['id', 'company_id', 'office_id', 'property_code', 'imported_at', 'source_modified_at'];
+
+function fmp_schema(string $table): array {
+    static $cache = [];
+    if (isset($cache[$table])) { return $cache[$table]; }
+    $out = [];
+    try {
+        foreach (db()->query("SHOW COLUMNS FROM `" . str_replace('`', '', $table) . "`") as $r) {
+            $t = strtolower((string)$r['Type']);
+            $kind = in_array($r['Field'], FMP_SYSTEM_COLS, true) ? 'ro'
+                  : (str_starts_with($t, 'date') && !str_starts_with($t, 'datetime') ? 'date'
+                  : (str_starts_with($t, 'datetime') || str_starts_with($t, 'timestamp') ? 'datetime'
+                  : (preg_match('/^(decimal|int|bigint|smallint|tinyint|float|double)/', $t) ? 'num'
+                  : (str_contains($t, 'text') ? 'long' : 'text'))));
+            $out[] = ['name' => $r['Field'], 'kind' => $kind, 'label' => fmp_label($r['Field'])];
+        }
+    } catch (Throwable $e) { /* table not on this server */ }
+    return $cache[$table] = $out;
+}
+// f_12_ad_copy_1 -> "12 ad copy 1", rnw_insp_by -> "rnw insp by"
+function fmp_label(string $col): string {
+    $l = preg_replace('/^f_(\d+)_?/', '$1 ', $col);
+    return trim(str_replace('_', ' ', $l));
+}
+function fmp_all(string $pcode): array {
+    $out = [];
+    foreach (FMP_TABLES as $key => $label) {
+        $table = 'fmp_' . $key;
+        $schema = fmp_schema($table);
+        if (!$schema) { continue; }
+        $cols = array_column($schema, 'name');
+        if (!in_array('property_code', $cols, true)) { $out[$key] = ['label' => $label, 'table' => $table, 'schema' => $schema, 'rows' => [], 'note' => 'not keyed by property code']; continue; }
+        $st = db()->prepare("SELECT * FROM `$table` WHERE office_id = ? AND LOWER(property_code) = LOWER(?) ORDER BY id LIMIT 60");
+        $st->execute([oid(), $pcode]);
+        $out[$key] = ['label' => $label, 'table' => $table, 'schema' => $schema, 'rows' => $st->fetchAll()];
+    }
+    return $out;
+}
+function fmp_row_save(string $key, int $id, array $fields): array {
+    if (!isset(FMP_TABLES[$key])) { return ['ok' => false, 'error' => 'Unknown FileMaker table.']; }
+    $table = 'fmp_' . $key;
+    $schema = []; foreach (fmp_schema($table) as $c) { $schema[$c['name']] = $c['kind']; }
+    $set = []; $vals = [];
+    foreach ($fields as $k => $v) {
+        if (!isset($schema[$k]) || $schema[$k] === 'ro') { continue; }
+        $v = is_string($v) ? trim($v) : $v;
+        if ($v === '' || $v === null) { $v = null; }
+        elseif ($schema[$k] === 'date') { $ts = strtotime((string)$v); $v = $ts ? date('Y-m-d', $ts) : null; }
+        elseif ($schema[$k] === 'datetime') { $ts = strtotime((string)$v); $v = $ts ? date('Y-m-d H:i:s', $ts) : null; }
+        elseif ($schema[$k] === 'num') { $v = is_numeric($v) ? $v + 0 : null; }
+        $set[] = "`$k` = ?"; $vals[] = $v;
+    }
+    if (!$set) { return ['ok' => true, 'changed' => 0]; }
+    try {
+        $vals[] = $id; $vals[] = oid();
+        $st = db()->prepare("UPDATE `$table` SET " . implode(', ', $set) . " WHERE id = ? AND office_id = ?");
+        $st->execute($vals);
+    } catch (Throwable $e) { return ['ok' => false, 'error' => 'FileMaker table: ' . $e->getMessage()]; }
+    return ['ok' => true, 'changed' => count($set)];
+}
