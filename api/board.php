@@ -86,16 +86,19 @@ function rent_backfill(array &$q, array $L): void {
     // is not yet confirmed from Rentvine asks once a day (live GETs) and takes Rentvine's numbers.
     if ($q['status'] !== 'open') { return; }
     if (setting('rent_backfill_off', '0') === '1') { return; }
-    $fresh = !empty($q['rent_checked_at']) && strtotime((string)$q['rent_checked_at']) > time() - 86400;
     $rentOk = $q['current_rent'] !== null && ($q['rent_source'] ?? '') === 'charge';
     $depOk  = $q['current_deposit'] !== null && in_array($q['deposit_source'] ?? '', ['ledger', 'lease'], true);
-    if (($rentOk && $depOk) || $fresh) { return; }
+    if ($rentOk && $depOk) { return; }
+    // throttle: 10 minutes while the rent is still unconfirmed, a day when only the deposit is missing
+    $window = $rentOk ? 86400 : 600;
+    $fresh = !empty($q['rent_checked_at']) && strtotime((string)$q['rent_checked_at']) > time() - $window;
+    if ($fresh) { return; }
     $why = null;
     $pick = $rentOk ? null : rv_live_rent_charge($L['lease_id'], $why);
     $live = $depOk ? null : rv_live_lease($L['lease_id']);
     if (!$pick && !$live) {
         // nothing came back: say why (events) and try again in 10 minutes, not tomorrow
-        db()->prepare("UPDATE renewal_decisions SET rent_checked_at = NOW() - INTERVAL 1430 MINUTE WHERE id = ?")->execute([$q['id']]);
+        db()->prepare("UPDATE renewal_decisions SET rent_checked_at = NOW() WHERE id = ?")->execute([$q['id']]);
         log_event((int)$q['id'], 'rent_check_failed', ['lease_id' => $L['lease_id'], 'detail' => ['why' => $why ?: 'lease GET returned nothing either']]);
         $q = q_row($L['lease_id'], $q['cycle']);
         return;
