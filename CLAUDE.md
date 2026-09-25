@@ -238,3 +238,9 @@ RENEWALS.PERM per-property history rows - those stay Renewal's own (`renewal_pro
 `fmp_schema` from SHOW COLUMNS, kinds ro/date/datetime/num/long/text, `fmp_all` / `fmp_row_save` by row id +
 office; tables without `property_code` are listed with a note). Renewal Special / Evaluation / history stay
 Renewal's own.
+
+**Sep 25 (Larry): Main fits one screen.** Record tightened (notes / special / remarks one row, history in a 4-row
+scroll box, FileMaker section closed until a tab is clicked, body in a 46vh scroll box, closes on record change);
+`fitMain()` steps `--main-scale` down from `main_scale` (floor 0.8) until `#recbody` needs no scrollbar, per-PC
+toggle `renewal.fit` in Settings, `#fitnote` shows the % when it shrank. Measured: 1920×1080 stays 115 %,
+1440×900 → 88 %, 1366×768 → 80 % (still scrolls a little).

@@ -206,7 +206,12 @@ THE RECORD (Main, center pane)
     and this cycle's decisions); the open record is highlighted
     and a click opens a row. Main runs at 115 % on its own
     (Settings > "Main window size"); display mode still wins when
-    it is on.
+    it is on. "Fit one screen" (Settings, per PC, on by default)
+    shrinks Main step by step, down to 80 %, until the record needs
+    no scrollbar: a 1080p monitor stays at 115 %, a 1440x900 screen
+    lands around 88 %. The percent shows next to the position
+    count when it kicked in. The FileMaker section stays closed
+    until a tab is clicked, and opens inside its own scroll box.
 
 
 POST TO RENTVINE  (bills are NEVER created)

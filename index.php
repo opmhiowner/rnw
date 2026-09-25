@@ -54,7 +54,7 @@ $me = require_login();
         <button class="btn xs" id="c-next2" aria-label="Next cycle">&gt;</button>
         <span class="muted" style="font-size:11px" id="c-info2"></span>
         <div class="grow"></div>
-        <span class="muted" style="font-size:11px" id="pos"></span> <span style="font-size:11px;color:var(--warn)" id="savestate"></span>
+        <span class="muted" style="font-size:11px" id="pos"></span> <span class="muted" style="font-size:11px" id="fitnote" title="Main shrank to fit this screen (Settings > Fit one screen)"></span> <span style="font-size:11px;color:var(--warn)" id="savestate"></span>
         <a href="prep.php" target="rc-prep" id="lnk-prep2" class="btn xs" style="text-decoration:none;display:inline-flex;align-items:center">Prep screen</a>
       </div>
       <!-- the set, three rows tall: every property in this increase month from Sync Center; the open one is highlighted -->
@@ -114,7 +114,7 @@ $me = require_login();
             </div>
           </div>
           <!-- evaluation + lease -->
-          <div style="display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;flex-direction:column;gap:10px">
             <div class="card eval">
               <div class="row between"><h3>Evaluation</h3><span class="muted" id="last-renewal"></span></div>
               <div class="row" style="gap:6px"><input class="in sm" id="f-prop-vaoao" placeholder="Building / AOAO (e.g. Royal Kuhio AOAO)"><input class="in sm" id="f-prop-color" type="color" title="colour on the Prep list" style="width:44px;padding:2px"></div>
@@ -138,26 +138,23 @@ $me = require_login();
           </div>
         </div>
 
-        <div class="grid2">
-          <label class="fld vaoao"><span class="label">Renewal special · this property, every cycle</span><textarea class="in" id="f-prop-special" placeholder="e.g. Unit allows a small pet. Call owner before sending renewal."></textarea></label>
-          <div style="display:flex;flex-direction:column;gap:6px">
-            <label class="fld notes"><span class="label">Notes · this cycle</span><textarea class="in" id="f-notes" placeholder="Notes for this renewal…" style="height:38px"></textarea></label>
-            <label class="fld"><span class="label">Remarks (list column)</span><input class="in sm" id="f-remarks" placeholder="short remark shown on the Prep list"></label>
-          </div>
+        <div class="grid3 notes-row">
+          <label class="fld vaoao"><span class="label">Renewal special · this property, every cycle</span><textarea class="in" id="f-prop-special" placeholder="e.g. Unit allows a small pet. Call owner before sending renewal." style="height:40px"></textarea></label>
+          <label class="fld notes"><span class="label">Notes · this cycle</span><textarea class="in" id="f-notes" placeholder="Notes for this renewal…" style="height:40px"></textarea></label>
+          <label class="fld"><span class="label">Remarks (list column)</span><input class="in sm" id="f-remarks" placeholder="short remark shown on the Prep list"></label>
         </div>
 
         <div style="display:flex;flex-direction:column;gap:8px">
           <div class="row between"><span class="label">Same building — rent history</span><span class="muted" id="hist-n"></span></div>
-          <div class="tbl hist">
+          <div class="tbl hist" id="histbox">
             <div class="tr th"><span>Unit / config</span><span>Rent</span><span>Last renewal</span><span>Move in</span><span>Tenant</span></div>
             <div id="hist"></div>
           </div>
         </div>
         <!-- FileMaker: every fmp_ table for this property, on the page, editable. One-time import = live copy. -->
         <div style="display:flex;flex-direction:column;gap:8px" id="fmp-section" class="hide">
-          <div class="row between"><span class="label">FileMaker — this property</span><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
-          <div class="chips" id="fmp-tabs"></div>
-          <div id="fmp-body" style="display:flex;flex-direction:column;gap:10px"></div>
+          <div class="row" style="gap:10px;flex-wrap:wrap"><span class="label">FileMaker — this property</span><div class="chips" id="fmp-tabs" style="flex:1"></div><span class="muted" style="font-size:11px" id="fmp-when"></span></div>
+          <div id="fmp-body" class="hide" style="display:flex;flex-direction:column;gap:10px;max-height:46vh;overflow:auto"></div>
         </div>
       </div>
     </div>
@@ -326,7 +323,7 @@ $me = require_login();
     ['eval_top', 'eval_recom', 'eval_bottom', 'notes', 'remarks'].forEach(k => $('f-' + k.replace('_', '-')).value = q[k] || '');
     const P = S.rec.property || {};
     $('f-prop-special').value = P.special || ''; $('f-prop-vaoao').value = P.vaoao || ''; $('f-prop-vaoao').title = P.vaoao_source === 'filemaker' ? 'from FileMaker (fmp_properties.aoao) - saving writes it back there too' : ''; $('f-prop-color').value = P.color || '#ffffff';
-    renderFmp();
+    renderFmp(); requestAnimationFrame(fitMain);
     $('past').innerHTML = (S.rec.past || []).filter(p => p.cycle !== S.cycle).map(p => `<div class="row between"><span>${fmt.cycle(p.cycle)} <span class="tag ${p.status}">${p.status}</span></span><span class="mono">${fmt.money(p.current_rent)} → ${fmt.money(p.new_rent)} ${p.pct_inc !== null ? '(' + fmt.pct(p.pct_inc) + ')' : ''}</span></div>`).join('') || '<span class="muted">none in this app yet</span>';
     const fin = !!S.rec.finalized;
     $('btn-prep').disabled = fin;
@@ -430,9 +427,10 @@ $me = require_login();
   }
 
   // ---------- FileMaker: every fmp_ table for this property, inline, one form per row, Save row writes it back
-  let fmpTab = LS('renewal.fmptab') || 'renewals';
+  let fmpTab = LS('renewal.fmptab') || 'renewals', fmpOpen = false;   // closed on every record: the page fits one screen
   async function renderFmp() {
     const sel = S.sel;
+    if (sel !== renderFmp.last) { fmpOpen = false; renderFmp.last = sel; }
     const j = await api('fmp_all', { lease_id: sel });
     if (S.sel !== sel) return;
     const keys = j.ok ? Object.keys(j.tables) : [];
@@ -448,7 +446,10 @@ $me = require_login();
       const shown = c.kind === 'date' ? val.slice(0, 10) : (c.kind === 'datetime' ? val : (c.kind === 'num' && val !== '' ? String(Number(val)) : val));
       return `<label>${fmt.esc(c.label)}</label><input class="in" data-col="${c.name}" type="${type}" ${c.kind === 'num' ? 'step="any"' : ''} value="${fmt.esc(shown)}">`;
     };
-    $('fmp-tabs').innerHTML = keys.map(k => `<button class="btn xs ${k === fmpTab ? 'on' : ''}" data-t="${k}">${fmt.esc(j.tables[k].label)} · ${j.tables[k].rows.length}</button>`).join('');
+    $('fmp-tabs').innerHTML = keys.map(k => `<button class="btn xs ${fmpOpen && k === fmpTab ? 'on' : ''}" data-t="${k}" title="${fmpOpen && k === fmpTab ? 'click to close' : 'open'}">${fmt.esc(j.tables[k].label)} · ${j.tables[k].rows.length}</button>`).join('');
+    $('fmp-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { if (fmpOpen && fmpTab === b.dataset.t) { fmpOpen = false; } else { fmpTab = b.dataset.t; fmpOpen = true; LS('renewal.fmptab', fmpTab); } renderFmp(); });
+    $('fmp-body').classList.toggle('hide', !fmpOpen);
+    if (!fmpOpen) { $('fmp-body').innerHTML = ''; fitMain(); return; }
     if (!j.tables[fmpTab]) fmpTab = keys[0];
     const t = j.tables[fmpTab];
     $('fmp-body').innerHTML = (t.note ? `<div class="muted">${fmt.esc(t.note)}</div>` : '')
@@ -456,7 +457,6 @@ $me = require_login();
           <div class="row between"><strong style="font-size:12px">${fmt.esc(t.label)}${t.rows.length > 1 ? ' · row ' + r.id : ''}</strong><button class="btn xs pri fmp-row-save" ${S.rec.finalized ? 'disabled' : ''}>Save row</button></div>
           <div class="kv fmpkv">${t.schema.filter(c => c.kind !== 'ro' || (c.name !== 'company_id' && c.name !== 'office_id' && c.name !== 'id')).map(c => field(c, r[c.name])).join('')}</div></div>`).join('')
         : (t.note ? '' : '<div class="muted">No row for this property in FileMaker.</div>'));
-    $('fmp-tabs').querySelectorAll('button').forEach(b => b.onclick = () => { fmpTab = b.dataset.t; LS('renewal.fmptab', fmpTab); renderFmp(); });
     $('fmp-body').querySelectorAll('.fmp-row-save').forEach(btn => btn.onclick = async () => {
       const box = btn.closest('.fmp-row'); const fields = {}; box.querySelectorAll('[data-col]').forEach(i => fields[i.dataset.col] = i.value);
       btn.disabled = true; const r = await api('fmp_row_save', { table: box.dataset.table, id: Number(box.dataset.id), fields }); btn.disabled = false;
@@ -576,6 +576,7 @@ $me = require_login();
       <div class="kv">
         <label>Display mode (135 % type)</label><select class="in" id="s-display"><option value="" ${!localDisplay ? 'selected' : ''}>Follow office default</option><option value="on" ${localDisplay === 'on' ? 'selected' : ''}>On</option><option value="off" ${localDisplay === 'off' ? 'selected' : ''}>Off</option></select>
         <label>Photo agent URL</label><input class="in" id="s-agent" value="${fmt.esc(LS('renewal.agent') || 'http://localhost:8765')}">
+        <label>Fit one screen (shrink Main until nothing scrolls)</label><select class="in" id="s-fit"><option value="on" ${LS('renewal.fit') !== 'off' ? 'selected' : ''}>On</option><option value="off" ${LS('renewal.fit') === 'off' ? 'selected' : ''}>Off</option></select>
       </div>
       <div class="label">Office rules</div>
       <div class="kv">${f('display_mode', 'Display mode default (1 = on)')}${f('display_scale', 'Display scale')}${f('main_scale', 'Main window size (1 = 100 %, 1.15 = 115 %)')}${f('cycle_offset', 'Run month + N = increase month')}${f('letters_day', 'Letters out by day of run month')}
@@ -608,12 +609,26 @@ $me = require_login();
     $('m-save').onclick = async () => {
       const v = $('s-display').value; if (v) display.set(v === 'on'); else { display.reset(); display.apply(s.display_mode === '1', Number(s.display_scale || 1.35)); }
       RC.photoAgent.setUrl($('s-agent').value.trim() || 'http://localhost:8765');
+      LS('renewal.fit', $('s-fit').value);
       const settings = {}; $('modal-box').querySelectorAll('[data-k]').forEach(i => settings[i.dataset.k] = i.value);
       const r = await api('settings_set', { settings });
       if (!r.ok) { toast(r.error, true); return; }
       closeModal(); toast('Settings saved'); loadBoard();
     };
   };
+
+  // fit one screen: step Main's zoom down (floor 80 %) until the record needs no scrollbar; per PC, Settings
+  function fitMain() {
+    if (LS('renewal.fit') === 'off' || document.documentElement.dataset.display === 'on') return;
+    const base = Number(S.board && S.board.display.main_scale || 1.15);
+    let z = base;
+    document.documentElement.style.setProperty('--main-scale', String(z));
+    const over = () => $('recbody').scrollHeight > $('recbody').clientHeight + 2;
+    let n = 0;
+    while (over() && z > 0.8 && n++ < 14) { z = Math.max(0.8, Math.round((z - 0.03) * 100) / 100); document.documentElement.style.setProperty('--main-scale', String(z)); }   // floor 80 %: a laptop still shrinks, a 1080p monitor never has to
+    $('fitnote').textContent = z < base ? Math.round(z * 100) + ' %' : '';
+  }
+  window.addEventListener('resize', () => fitMain());
 
   // the record pane collapses to one column when the monitor (after display zoom) is narrow
   const fit = () => { const w = $('recbody').clientWidth; $('recbody').classList.toggle('narrow', w < 760); $('recbody').classList.toggle('tight', w < 560); };

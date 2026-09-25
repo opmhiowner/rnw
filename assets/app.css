@@ -191,3 +191,12 @@ kbd { font-family:var(--mono); font-size:11px; background:var(--field); border:1
 .fmpkv { grid-template-columns:150px minmax(0,1fr) 150px minmax(0,1fr); font-size:12px; }
 .fmpkv label { overflow-wrap:anywhere; }
 .narrow .fmpkv { grid-template-columns:150px minmax(0,1fr); }
+
+/* Main fits one screen: tighter record, history and FileMaker scroll inside their own boxes */
+html.main-window #recbody { padding:10px 20px !important; gap:10px !important; }
+html.main-window .card { padding:10px 12px; gap:7px; }
+html.main-window .grid2 { gap:10px; }
+.notes-row { align-items:start; }
+.notes-row .fld { min-width:0; }
+#histbox { max-height:calc(4 * 27px + 4px); overflow:auto; }
+.tight .notes-row { grid-template-columns:repeat(2,minmax(0,1fr)); }
