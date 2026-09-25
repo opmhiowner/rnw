@@ -79,7 +79,7 @@ function rv_templates_default(): array {
         'rv_rent_account_id'    => '',
         'rv_deposit_account_id' => '',
         'rv_custom_field_id'    => '3',
-        'rv_custom_field_name'  => 'Last Renewal Date',
+        'rv_custom_field_name'  => 'Last Increase Date.L',
     ];
 }
 // which templates are confirmed by a working client vs still a guess

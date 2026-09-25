@@ -28,6 +28,9 @@ WHERE THE DATA COMES FROM
                 renewal_cycles       letters-sent / finalized per cycle
                 renewal_property     Renewal Special, VAOAO, colour per pcode
                 renewal_settings     per-office knobs + Rentvine templates
+  Sync Center v.32 feeds this app also reads (nothing is pulled live
+  for display): lease-details (rent charge, rentAmount, "Last Increase
+  Date.L") and leases-balances (security deposit held, tenant balance).
                 renewal_events       every action, who, what Rentvine said
                 renewal_media        cover photo, order, description per pcode
                 renewal_comps_cache  Craigslist results, 7 days

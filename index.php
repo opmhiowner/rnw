@@ -152,7 +152,7 @@ $me = require_login();
         <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
           <div class="row between"><span class="label">Same building — rent history</span><span class="muted" id="hist-n"></span></div>
           <div class="tbl hist" id="histbox">
-            <div class="tr th"><span>Unit / config</span><span>Rent</span><span>Last renewal</span><span>Move in</span><span>Tenant</span></div>
+            <div class="tr th"><span>Unit / config</span><span>Rent</span><span>Last increase</span><span>Move in</span><span>Tenant</span></div>
             <div id="hist"></div>
           </div>
         </div>
@@ -303,6 +303,16 @@ $me = require_login();
       zip: L.zip, bed: L.bed, bath: L.bath, sqft: L.sqft, parking: L.parking, city: L.city, pinned: q.pinned_comps || [] });
   }
 
+  // same-building list; rows carry live = checked with Rentvine today (rent + Last Increase Date.L)
+  function renderHist() {
+    const L = S.rec.lease;
+    $('hist-n').textContent = S.rec.history.length + ' other unit' + (S.rec.history.length === 1 ? '' : 's');
+    const P0 = (S.rec.fmp && S.rec.fmp.property) || {};
+    const myCfg = [P0.type, [P0.bd !== null && P0.bd !== undefined ? Number(P0.bd) : null, P0.ba !== null && P0.ba !== undefined ? Number(P0.ba) : null, P0.pk].filter(v => v !== null && v !== undefined && v !== '').join(' / ')].filter(Boolean).join(' - ');
+    $('hist').innerHTML = [{ pcode: L.pcode, unit: L.unit, bed: L.bed, bath: L.bath, parking: L.parking, rent: L.rent, last_increase: L.last_renewal, move_in: L.move_in, tenant: L.tenant, config: myCfg, me: true }]
+      .concat(S.rec.history).map(h => `<div class="tr ${h.me ? 'me' : ''}"><span><strong>${fmt.esc(h.pcode || h.unit || '—')}</strong> · ${h.config ? fmt.esc(h.config) : (h.bed ?? '?') + '/' + (h.bath ?? '?') + (h.parking ? ' · ' + fmt.esc(h.parking) + ' pk' : '')}</span>
+        <span class="mono">${fmt.money(h.rent)}</span><span>${fmt.date(h.last_increase)}</span><span>${fmt.date(h.move_in)}</span><span>${fmt.esc(h.tenant)}</span></div>`).join('');
+  }
   function renderRecord() {
     const L = S.rec.lease, q = S.rec.q, R = S.rec.ranges;
     $('h-prop').textContent = (L.property || L.address || 'Lease ' + L.lease_id) + (L.unit ? ' #' + L.unit : '');
@@ -315,7 +325,7 @@ $me = require_login();
     $('mtm-note').textContent = L.mtm ? 'Renew MTM every 2 years' : '';
     $('firstyr').textContent = (S.rec.cat === 2) ? '(blue = 1st yr)' : '';
     $('cur-rent').textContent = fmt.money(q.current_rent);
-    $('rent-src').innerHTML = (q.rent_source === 'charge' ? 'Rentvine rent charge' : (q.rent_source === 'lease' ? 'Rentvine lease' : '<span style="color:var(--warn)">unit asking rent · not yet confirmed with Rentvine</span>'))
+    $('rent-src').innerHTML = (q.rent_source === 'charge' ? 'Rentvine rent charge' : (q.rent_source === 'lease' ? 'Rentvine lease record' : '<span style="color:var(--warn)">unit asking rent · not in Sync Center yet</span>'))
       + (q.status === 'open' ? ' · <a href="#" id="rent-refresh">check Rentvine now</a>' : '');
     $('rent-src').title = q.rent_checked_at ? 'Rentvine asked ' + q.rent_checked_at : 'Rentvine not reached yet';
     const rr = $('rent-refresh'); if (rr) rr.onclick = async (e) => {
@@ -348,15 +358,10 @@ $me = require_login();
     const yrs = L.move_in ? ((Date.now() - new Date(L.move_in)) / 31557600000).toFixed(1) : '—';
     $('lease-grid').innerHTML = [['Move in', fmt.date(L.move_in)], ['Lease end', L.mtm ? (L.end ? fmt.date(L.end) + ' (MTM)' : 'MTM') : fmt.date(L.end)], ['Lease yrs', yrs],
       ['Type', L.mtm ? 'Month-to-month' : 'Fixed'], ['Bed / bath', (L.bed ?? '—') + ' / ' + (L.bath ?? '—')], ['Sq ft · parking', (L.sqft ?? '—') + ' · ' + (L.parking || '—')],
-      ['Rent starts', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Increase eligible (Rentvine)', fmt.date(L.next_increase)],
+      ['Rent starts', fmt.date(q.increase_date)], ['Deposit on file', fmt.money(L.deposit)], ['Balance (past due)', L.balance === null || L.balance === undefined ? '—' : fmt.money(L.balance)], ['Increase eligible (Rentvine)', fmt.date(L.next_increase)],
       ['Rentvine lease', L.lease_id + (L.code ? ' · ' + L.code : '') + (L.rent_source ? ' · rent from ' + L.rent_source : '')]]
       .map(([k, v]) => `<div class="fld"><span>${k}</span><strong>${fmt.esc(v)}</strong></div>`).join('');
-    $('hist-n').textContent = S.rec.history.length + ' other unit' + (S.rec.history.length === 1 ? '' : 's');
-    const P0 = (S.rec.fmp && S.rec.fmp.property) || {};
-    const myCfg = [P0.type, [P0.bd !== null && P0.bd !== undefined ? Number(P0.bd) : null, P0.ba !== null && P0.ba !== undefined ? Number(P0.ba) : null, P0.pk].filter(v => v !== null && v !== undefined && v !== '').join(' / ')].filter(Boolean).join(' - ');
-    $('hist').innerHTML = [{ pcode: L.pcode, unit: L.unit, bed: L.bed, bath: L.bath, parking: L.parking, rent: L.rent, last_increase: L.last_renewal || L.last_increase, move_in: L.move_in, tenant: L.tenant, config: myCfg, me: true }]
-      .concat(S.rec.history).map(h => `<div class="tr ${h.me ? 'me' : ''}"><span><strong>${fmt.esc(h.pcode || h.unit || '—')}</strong> · ${h.config ? fmt.esc(h.config) : (h.bed ?? '?') + '/' + (h.bath ?? '?') + (h.parking ? ' · ' + fmt.esc(h.parking) + ' pk' : '')}</span>
-        <span class="mono">${fmt.money(h.rent)}</span><span>${fmt.date(h.last_increase)}</span><span>${fmt.date(h.move_in)}</span><span>${fmt.esc(h.tenant)}</span></div>`).join('');
+    renderHist();
     $('mo-date').textContent = fmt.date(L.move_out); $('mo-notice').textContent = fmt.date(L.notice);
     $('contact').innerHTML = `${fmt.esc(L.phone || '—')}<br>${fmt.esc(L.email || '')}`;
     // Last SEV + the three FileMaker-push fields from SEV Center (same database)

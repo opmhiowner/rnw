@@ -86,9 +86,23 @@ function rent_backfill(array &$q, array $L): void {
     // is not yet confirmed from Rentvine asks once a day (live GETs) and takes Rentvine's numbers.
     if ($q['status'] !== 'open') { return; }
     if (setting('rent_backfill_off', '0') === '1') { return; }
-    $rentOk = $q['current_rent'] !== null && ($q['rent_source'] ?? '') === 'charge';
-    $depOk  = $q['current_deposit'] !== null && in_array($q['deposit_source'] ?? '', ['ledger', 'lease'], true);
+    // Sync Center v.32 carries the rent charge, rentAmount and the deposit balance: when the mirror has them,
+    // take them over a unit-asking snapshot on the decision row and never call Rentvine for display
+    $set = []; $vals = [];
+    if (in_array($L['rent_source'] ?? '', ['charge', 'lease'], true) && $L['rent'] !== null && !in_array($q['rent_source'] ?? '', ['charge'], true)) {
+        $set[] = 'current_rent = ?'; $vals[] = (float)$L['rent']; $set[] = 'rent_source = ?'; $vals[] = $L['rent_source'];
+        if ($L['charge_id'] !== '') { $set[] = 'rv_old_charge_id = COALESCE(rv_old_charge_id, ?)'; $vals[] = $L['charge_id']; $set[] = 'rv_day_due = COALESCE(rv_day_due, ?)'; $vals[] = $L['day_due']; }
+        if ($q['new_rent'] !== null && (float)$L['rent'] > 0) { $set[] = 'pct_inc = ?'; $vals[] = round((((float)$q['new_rent'] - (float)$L['rent']) / (float)$L['rent']) * 100, 2); }
+    }
+    if (($L['deposit_source'] ?? '') === 'balance' && $L['deposit'] !== null && !in_array($q['deposit_source'] ?? '', ['ledger', 'balance'], true)) {
+        $set[] = 'current_deposit = ?'; $vals[] = (float)$L['deposit']; $set[] = "deposit_source = 'balance'";
+        if ($q['new_deposit'] !== null) { $set[] = 'sdr_delta = ?'; $vals[] = max(0.0, (float)$q['new_deposit'] - (float)$L['deposit']); }
+    }
+    if ($set) { $vals[] = $q['id']; db()->prepare("UPDATE renewal_decisions SET " . implode(', ', $set) . " WHERE id = ?")->execute($vals); $q = q_row($L['lease_id'], $q['cycle']); }
+    $rentOk = $q['current_rent'] !== null && in_array($q['rent_source'] ?? '', ['charge', 'lease'], true);
+    $depOk  = $q['current_deposit'] !== null && in_array($q['deposit_source'] ?? '', ['ledger', 'lease', 'balance'], true);
     if ($rentOk && $depOk) { return; }
+    if (setting('rent_live_off', '1') === '1') { return; }   // live Rentvine reads for display are off (Sync Center carries the data); "check Rentvine now" still works
     // throttle: 10 minutes while the rent is still unconfirmed, a day when only the deposit is missing
     $window = $rentOk ? 86400 : 600;
     $fresh = !empty($q['rent_checked_at']) && strtotime((string)$q['rent_checked_at']) > time() - $window;
@@ -175,6 +189,26 @@ function property_map(): array {
 
 function lease_out(array $L): array { unset($L['has_record']); return $L; }
 
+// FileMaker's 11.PF/F.BD.PK.Util for one lease: type - bd / ba / pk from the FileMaker property
+// file, else the same shape from the Rentvine unit
+function config_string(array $x): string {
+    $fp = fmp_property((string)$x['pcode']);
+    if ($fp) {
+        $type = trim((string)($fp['type'] ?? ''));
+        $bits = array_filter([$type !== '' ? $type : null, ($fp['bd'] !== null ? (float)$fp['bd'] + 0 : null) . ($fp['ba'] !== null ? ' / ' . ((float)$fp['ba'] + 0) : '') . ($fp['pk'] ? ' / ' . $fp['pk'] : '')], fn($v) => $v !== null && trim((string)$v) !== '');
+        if ($bits) { return implode(' - ', $bits); }
+    }
+    $pt = (string)($x['ptype'] ?? '');
+    $bits = array_filter([$pt !== '' && !str_starts_with($pt, 'type ') ? $pt : null,
+                          implode(' / ', array_filter([$x['bed'] !== null ? (float)$x['bed'] + 0 : null, $x['bath'] !== null ? (float)$x['bath'] + 0 : null, $x['parking'] !== '' ? $x['parking'] : null], fn($v) => $v !== null && $v !== ''))],
+                         fn($v) => $v !== null && trim((string)$v) !== '');
+    return implode(' - ', $bits);
+}
+function history_rows(array $L): array {
+    return array_map(fn($x) => ['lease_id' => $x['lease_id'], 'pcode' => $x['pcode'], 'unit' => $x['unit'], 'bed' => $x['bed'], 'bath' => $x['bath'],
+                                'parking' => $x['parking'], 'rent' => $x['rent'], 'last_increase' => $x['last_renewal'] ?? null,
+                                'move_in' => $x['move_in'], 'tenant' => $x['tenant'], 'config' => config_string($x)], building_history($L));
+}
 function record_payload(string $leaseId, string $cycle, bool $create = true): array {
     $L = lease_one($leaseId);
     if (!$L) { json_out(['ok' => false, 'error' => 'Lease ' . $leaseId . ' is not in Sync Center for this office.']); }
@@ -189,17 +223,11 @@ function record_payload(string $leaseId, string $cycle, bool $create = true): ar
     rent_backfill($q, $L);
     if (($q['rent_source'] ?? '') === 'charge' && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'Rentvine rent charge ' . ($q['rv_old_charge_id'] ?? ''); }
     elseif ($L['rent'] === null && $q['current_rent'] !== null) { $L['rent'] = (float)$q['current_rent']; $L['rent_source'] = 'rentvine charge ' . ($q['rv_old_charge_id'] ?? ''); }
-    if (($q['deposit_source'] ?? '') === 'ledger' && $q['current_deposit'] !== null) { $L['deposit'] = (float)$q['current_deposit']; }
+    elseif (($L['rent_source'] ?? '') === 'charge') { $L['rent_source'] = 'Rentvine rent charge ' . $L['charge_id'] . ' via Sync Center' . ($L['details_at'] ? ' (' . $L['details_at'] . ')' : ''); }
+    elseif (($L['rent_source'] ?? '') === 'lease') { $L['rent_source'] = 'Rentvine lease record via Sync Center' . ($L['details_at'] ? ' (' . $L['details_at'] . ')' : ''); }
+    if (in_array($q['deposit_source'] ?? '', ['ledger', 'balance'], true) && $q['current_deposit'] !== null) { $L['deposit'] = (float)$q['current_deposit']; }
     $q['pinned_comps'] = json_decode((string)($q['pinned_comps'] ?? ''), true) ?: [];
-    $cfg = function (array $x): string {        // FileMaker's 11.PF/F.BD.PK.Util: type - bd / ba / pk
-        $fp = fmp_property((string)$x['pcode']);
-        if (!$fp) { return ''; }
-        $bits = array_filter([$fp['type'] ?: null, ($fp['bd'] !== null ? (float)$fp['bd'] + 0 : null) . ($fp['ba'] !== null ? ' / ' . ((float)$fp['ba'] + 0) : '') . ($fp['pk'] ? ' / ' . $fp['pk'] : '')], fn($v) => $v !== null && trim((string)$v) !== '');
-        return implode(' - ', $bits);
-    };
-    $hist = array_map(fn($x) => ['lease_id' => $x['lease_id'], 'pcode' => $x['pcode'], 'unit' => $x['unit'], 'bed' => $x['bed'], 'bath' => $x['bath'],
-                                'parking' => $x['parking'], 'rent' => $x['rent'], 'last_increase' => $x['last_renewal'] ?? $x['last_increase'],
-                                'move_in' => $x['move_in'], 'tenant' => $x['tenant'], 'config' => $cfg($x)], building_history($L));
+    $hist = history_rows($L);
     $LP = last_posted_map();
     $AD = addons_for($cycle);
     $rule = queue_rule($L, $q, $cycle, $LP[$leaseId] ?? null, $AD[$leaseId] ?? null);
@@ -223,8 +251,11 @@ function set_row(array $r, array $PM, string $cycle = ''): array {
     $L = $r['lease']; $q = $r['q']; $r['cycle'] = $cycle ?: cycle_default();
     $P = $PM[$L['pcode']] ?? [];
     $newRent = $q && $q['new_rent'] !== null ? (float)$q['new_rent'] : null;
-    $cur = $q && $q['current_rent'] !== null ? (float)$q['current_rent'] : $L['rent'];
-    $dep = $q && $q['current_deposit'] !== null ? (float)$q['current_deposit'] : $L['deposit'];
+    // the decision's snapshot wins once it is confirmed (charge / lease / ledger), otherwise Sync Center's figure
+    $rentConf = $q && $q['current_rent'] !== null && in_array($q['rent_source'] ?? '', ['charge', 'lease'], true);
+    $depConf  = $q && $q['current_deposit'] !== null && in_array($q['deposit_source'] ?? '', ['ledger', 'balance', 'lease'], true);
+    $cur = $rentConf ? (float)$q['current_rent'] : ($L['rent'] ?? ($q && $q['current_rent'] !== null ? (float)$q['current_rent'] : null));
+    $dep = $depConf ? (float)$q['current_deposit'] : ($L['deposit'] ?? ($q && $q['current_deposit'] !== null ? (float)$q['current_deposit'] : null));
     return ['lease_id' => $L['lease_id'], 'tenant' => $L['tenant'], 'property' => $L['property'], 'unit' => $L['unit'],
             'pcode' => $L['pcode'], 'zip' => $L['zip'], 'address' => $L['address'], 'owner' => $L['owner'], 'ptype' => $L['ptype'],
             'cat' => $r['cat'], 'cat_label' => $r['cat_label'], 'reason' => $r['reason'],

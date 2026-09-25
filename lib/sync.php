@@ -109,6 +109,26 @@ function lease_core(array $rec): array {
     return isset($rec['lease']) && is_array($rec['lease']) ? $rec['lease'] : $rec;
 }
 
+// Rentvine custom fields ([{name, fields:[{customFieldID, name, value}]}] or a flat field list):
+// the value of field $id, else the first field whose name matches $nameRe, as Y-m-d.
+function custom_field_date(array $cf, string $id, string $nameRe): ?string {
+    $hit = null; $byName = null;
+    $walk = function ($node) use (&$walk, &$hit, &$byName, $id, $nameRe) {
+        if (!is_array($node) || $hit !== null) { return; }
+        if (isset($node['customFieldID']) && array_key_exists('value', $node)) {
+            if ((string)$node['customFieldID'] === $id) { $hit = $node['value']; }
+            elseif ($byName === null && preg_match($nameRe, (string)($node['name'] ?? ''))) { $byName = $node['value']; }
+            return;
+        }
+        foreach ($node as $v) { if (is_array($v)) { $walk($v); } }
+    };
+    $walk($cf);
+    $v = $hit ?? $byName;
+    if ($v === null || $v === '') { return null; }
+    $ts = strtotime((string)$v);
+    return $ts ? date('Y-m-d', $ts) : null;
+}
+
 // ---------- one lease, fully joined. $ix = index row, feeds = the
 // sync_records maps. Returns the normalised shape every screen uses.
 function lease_join(array $ix, array $F): array {
@@ -123,6 +143,13 @@ function lease_join(array $ix, array $F): array {
     // endDate 2049-09-09 is Rentvine's "no end" placeholder. Rent lives on the unit block
     // (and on the recurring charge), never on the lease itself.
     $LU   = isset($rec['unit']) && is_array($rec['unit']) ? $rec['unit'] : [];
+    // Sync Center v.32 feeds (Larry, Sep 25: everything Rentvine-side comes through Sync Center):
+    //   lease-details   = {leaseID, _fetched_at, lease:{... rentAmount}, customFields:[{fields:[{customFieldID, name, value}]}], charges:[...]}
+    //   leases-balances = the lease search row {lease:{depositBalance, currentBalance}}
+    $D  = $F['details'][$id] ?? [];
+    $DL = isset($D['lease']) && is_array($D['lease']) ? $D['lease'] : [];
+    $B  = lease_core($F['balances'][$id] ?? []);
+    $chg = (isset($D['charges']) && is_array($D['charges']) && function_exists('rv_pick_rent_charge')) ? rv_pick_rent_charge($D['charges']) : null;
     $pid  = (string)(sx($ix, ['property_id', 'propertyId']) ?? sx($L, ['propertyID', 'propertyId', 'property_id']) ?? '');
     $uid  = (string)(sx($ix, ['unit_id', 'unitId']) ?? sx($L, ['unitID', 'unitId', 'unit_id']) ?? '');
     $oid_ = (string)(sx($ix, ['owner_id', 'ownerId']) ?? sx($L, ['ownerID', 'ownerId']) ?? '');
@@ -166,12 +193,15 @@ function lease_join(array $ix, array $F): array {
     // The lease's own figures first (Rentvine: "Actual Rent Amount", security deposit); the unit's
     // rent / deposit are its ASKING figures and only a fallback - Rentvine keeps the real rent on the
     // rent recurring charge, which rent_backfill() reads live when the mirror has only the unit's.
-    $rentLease = sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent', 'currentRent']);
-    $rent = $rentLease ?? sx_num($LU, ['rent']) ?? sx_num($U, ['rent']);
-    $rentSource = $rentLease !== null ? 'lease' : ($rent !== null ? 'unit' : null);
+    $rentCharge = $chg && $chg['amount'] !== null ? (float)$chg['amount'] : null;               // the open rent charge (Sync Center lease-details)
+    $rentLease = sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent', 'currentRent']) ?? sx_num($DL, ['rentAmount', 'baseRentAmount']);
+    $rent = $rentCharge ?? $rentLease ?? sx_num($LU, ['rent']) ?? sx_num($U, ['rent']);
+    $rentSource = $rentCharge !== null ? 'charge' : ($rentLease !== null ? 'lease' : ($rent !== null ? 'unit' : null));
     $depLease = sx_num($L, ['securityDepositAmount', 'securityDeposit', 'securityDepositBalance', 'depositAmount', 'deposit']);
-    $deposit = $depLease ?? sx_num($LU, ['deposit']) ?? sx_num($U, ['deposit']);
-    $depositSource = $depLease !== null ? 'lease' : ($deposit !== null ? 'unit' : null);
+    $depBal = sx_num($B, ['depositBalance']);                                                      // security deposit held (leases-balances)
+    $deposit = $depBal ?? $depLease ?? sx_num($LU, ['deposit']) ?? sx_num($U, ['deposit']);          // held balance beats the contract figure
+    $depositSource = $depBal !== null ? 'balance' : ($depLease !== null ? 'lease' : ($deposit !== null ? 'unit' : null));
+    $balance = sx_num($B, ['currentBalance']);                                                     // tenant ledger balance = FileMaker's TPast Due
     $eligible = sx_date($L, ['increaseEligibilityDate']);
     // Rentvine moves increaseEligibilityDate a year out at each increase: the last increase is a year before it
     $lastInc = sx_date($L, ['lastRentIncreaseDate', 'lastIncreaseDate']) ?? ($eligible ? date('Y-m-d', strtotime($eligible . ' -1 year')) : null);
@@ -182,6 +212,10 @@ function lease_join(array $ix, array $F): array {
             $n = strtolower((string)sx($cf, ['name', 'label', 'fieldName'], ''));
             if (str_contains($n, 'renewal')) { $lastRenewal = sx_date($cf, ['value', 'fieldValue']); break; }
         }
+    }
+    // "Last Increase Date.L" = lease custom field 3 (category OPM), via Sync Center's lease-details
+    if ($lastRenewal === null && isset($D['customFields']) && is_array($D['customFields'])) {
+        $lastRenewal = custom_field_date($D['customFields'], '3', '/last\s*(increase|renewal)/i');
     }
     $bed = sx_num($U, ['beds', 'bedrooms', 'bed']) ?? sx_num($LU, ['beds']);
     $fb = sx_num($U, ['fullBaths']) ?? sx_num($LU, ['fullBaths']); $hb = sx_num($U, ['halfBaths']) ?? sx_num($LU, ['halfBaths']);
@@ -218,6 +252,9 @@ function lease_join(array $ix, array $F): array {
         'last_increase'=> $lastInc,
         'next_increase'=> $eligible,
         'last_renewal' => $lastRenewal,
+        'balance'      => $balance,
+        'charge_id'    => $chg ? (string)$chg['id'] : '', 'day_due' => $chg ? $chg['day_due'] : null,
+        'details_at'   => (string)($D['_fetched_at'] ?? ''),
         'active'       => sync_row_active($ix, $closed, $end) && (string)(sx($U, ['isVacant']) ?? '0') !== '1',
         'status_raw'   => (string)(sx($L, ['leaseStatusID', 'status']) ?? sx($ix, ['status']) ?? ''),
         'has_record'   => $rec !== [],
@@ -243,7 +280,10 @@ function sync_row_active(array $ix, ?string $closed, ?string $end): bool {
 
 function sync_feeds_all(): array {
     return ['leases' => sync_feed('leases'), 'units' => sync_feed('units'),
-            'properties' => sync_feed('properties'), 'owners' => sync_feed('owners')];
+            'properties' => sync_feed('properties'), 'owners' => sync_feed('owners'),
+            // Sync Center v.32 (for this app): per-lease record {leaseID, _fetched_at, lease, customFields, charges}
+            // and the lease search with balances {lease:{depositBalance, currentBalance}}
+            'details' => sync_feed('lease-details'), 'balances' => sync_feed('leases-balances')];
 }
 
 // every active lease in this office, joined
@@ -260,7 +300,6 @@ function leases_all(): array {
     }
     return $out;
 }
-
 function lease_one(string $id): ?array {
     $all = leases_all();
     if (isset($all[$id])) { return $all[$id]; }
@@ -341,7 +380,7 @@ function months_between(string $from, string $to): int {
 //   4. move-in ("2 years+ since move in")
 function increase_anchor(array $L, ?string $lastPosted): array {
     if ($lastPosted) { return [$lastPosted, 'last posted renewal']; }
-    if ($L['last_renewal']) { return [$L['last_renewal'], 'Last Renewal Date']; }
+    if ($L['last_renewal']) { return [$L['last_renewal'], 'Last Increase Date.L in Rentvine']; }
     if ($L['last_increase']) { return [$L['last_increase'], 'Rentvine eligibility date - 1 yr']; }
     if ($L['move_in']) { return [$L['move_in'], 'move-in']; }
     return [null, 'no date'];

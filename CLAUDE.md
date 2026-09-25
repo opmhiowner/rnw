@@ -292,3 +292,18 @@ no longer depends on it: `asset_v()` = `RNW_REV.<file mtime>`, so browsers pick 
 Renewal Special, 274 properties) went into the field that already existed, `renewal_property.special` (the pink box on
 Main), as one paste-ready INSERT … ON DUPLICATE KEY UPDATE run in DBeaver (`updated_by = 'fmp-import'`, ids taken from the
 pv009c decision row, existing text kept). No importer in the app - the same SQL pattern serves any later one-time load.
+**Sep 25 (Larry): everything Rentvine-side comes through Sync Center, nothing is pulled live for display.** The same-
+building list had shown the mirror's asking rents and a computed "last renewal" (eligibility − 1 yr, = 2048 for MTM leases).
+Sync Center v.32 adds two feeds (spec handed to that project; a ready patch is in this session's notes): `lease-details` =
+per active lease `{leaseID, _fetched_at, lease:{… rentAmount}, customFields:[{fields:[{customFieldID, name, value}]}],
+charges:[recurring charges]}` (3 GETs per lease, merged, 20 h refresh, 700 / run cap) and `leases-balances` = the lease
+search with `includeBalances=true` (`lease.depositBalance`, `lease.currentBalance`). `sync_feeds_all()` reads both;
+`lease_join()` takes rent from the open rent charge in `charges` (`rent_source='charge'`, `charge_id`, `day_due`), else
+`lease.rentAmount` ('lease'), else the unit; deposit = `depositBalance` ('balance') before the lease's contract figure;
+`balance` = currentBalance (TPast Due, shown in the Lease card); `last_renewal` = custom field 3 "Last Increase Date.L"
+(`custom_field_date()`, id first, then name). `rent_backfill()` copies confirmed Sync Center figures onto the decision row
+(rent, charge id, day due, deposit, pct, SDR) and the live Rentvine reads for display are off (`rent_live_off`, default 1;
+"check Rentvine now" still works by hand). Still live: verify before/after upload, the upload itself, "Send test".
+`history_rows()` / `config_string()` factored out (config falls back to the Rentvine unit in "type - bd / ba / pk"),
+the same-building "Last increase" column is blank when Rentvine's is; set / Prep rows prefer Sync Center's figure until
+the decision snapshot is confirmed. The `renewal_lease_live` cache and `history_live` from earlier today are gone.

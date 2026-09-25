@@ -23,7 +23,7 @@ if (!defined('RNW_ROOT')) {
 
 // Revision counter, bumped by one every release (SEV / Action Inbox
 // scheme): v.1 ... v.99, then v1.00.
-const RNW_REV = 27;
+const RNW_REV = 28;
 // Cache-buster for app.css / app.js: the file's own mtime, so a browser never keeps an old
 // stylesheet after a deploy even when the release counter above was not bumped.
 function asset_v(string $rel): string {
