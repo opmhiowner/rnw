@@ -96,6 +96,7 @@ function rent_backfill(array &$q, array $L): void {
     $why = null;
     $pick = $rentOk ? null : rv_live_rent_charge($L['lease_id'], $why);
     $live = $depOk ? null : rv_live_lease($L['lease_id']);
+    if ($live && !empty($live['error'])) { $why = ($why ? $why . ' | ' : '') . 'lease: ' . $live['error']; $live = null; }
     if (!$pick && !$live) {
         // nothing came back: say why (events) and try again in 10 minutes, not tomorrow
         db()->prepare("UPDATE renewal_decisions SET rent_checked_at = NOW() WHERE id = ?")->execute([$q['id']]);
@@ -567,7 +568,7 @@ case 'rent_refresh': {
         $set[] = 'current_deposit = ?'; $vals[] = $dep; $set[] = "deposit_source = 'ledger'";
         if ($q['new_deposit'] !== null) { $set[] = 'sdr_delta = ?'; $vals[] = max(0.0, (float)$q['new_deposit'] - $dep); }
         $msg[] = 'deposit $' . number_format($dep, 2);
-    } else { $msg[] = 'deposit: not in the lease record' . ($live ? ' (keys: ' . implode(', ', array_slice($live['keys'], 0, 25)) . ')' : ''); }
+    } else { $msg[] = 'deposit: ' . (!empty($live['error']) ? $live['error'] : ('not in the lease record' . ($live ? ' (keys: ' . implode(', ', array_slice($live['keys'], 0, 25)) . ')' : ''))); }
     $vals[] = $q['id'];
     db()->prepare("UPDATE renewal_decisions SET " . implode(', ', $set) . " WHERE id = ?")->execute($vals);
     log_event((int)$q['id'], ($pick || ($live && $live['deposit'] !== null)) ? 'rent_from_rentvine' : 'rent_check_failed', ['lease_id' => $id, 'detail' => ['manual' => true, 'result' => $msg, 'why' => $why, 'lease_keys' => $live['keys'] ?? null]]);

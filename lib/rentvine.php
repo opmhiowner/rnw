@@ -262,7 +262,7 @@ function rv_live_lease(string $leaseId): ?array {
     $c = rv_creds();
     if ($c['key'] === '' || $c['base'] === '') { return null; }
     $r = rv_call('GET', $c['base'] . '/leases/' . rawurlencode($leaseId), null, 15);
-    if (!$r['ok'] || !is_array($r['json'])) { return null; }
+    if (!$r['ok'] || !is_array($r['json'])) { return ['rent' => null, 'deposit' => null, 'keys' => [], 'error' => ($r['error'] ?: 'HTTP ' . $r['code']) . ' for ' . $c['base'] . '/leases/' . $leaseId]; }
     $j = $r['json'];
     $L = isset($j['lease']) && is_array($j['lease']) ? $j['lease'] : $j;
     return [
@@ -275,8 +275,9 @@ function rv_live_lease(string $leaseId): ?array {
 function rv_live_rent_charge(string $leaseId, ?string &$why = null): ?array {
     $c = rv_creds();
     if ($c['key'] === '' || $c['base'] === '') { $why = 'Rentvine is not connected for this office (no key / base URL - Settings > Rentvine, source ' . $c['source'] . ')'; return null; }
-    $r = rv_call('GET', rv_fill(rv_tpl('rv_charges_list_url'), ['base' => $c['base'], 'lease_id' => $leaseId]), null, 15);
-    if (!$r['ok']) { $why = ($r['error'] ?: 'HTTP ' . $r['code']) . ' ' . mb_substr((string)$r['body'], 0, 300); return null; }
+    $url = rv_fill(rv_tpl('rv_charges_list_url'), ['base' => $c['base'], 'lease_id' => $leaseId]);
+    $r = rv_call('GET', $url, null, 15);
+    if (!$r['ok']) { $why = ($r['error'] ?: 'HTTP ' . $r['code']) . ' for ' . $url . ' (' . $c['source'] . ', ' . $c['auth_style'] . ') ' . mb_substr((string)$r['body'], 0, 300); return null; }
     $pick = rv_pick_rent_charge($r['json']);
     if (!$pick) { $why = 'no open rent charge matched (' . count(rv_charge_rows($r['json'])) . ' charges on the lease; match rule "' . rv_tpl('rv_rent_match') . '" / account.isRent)'; }
     return $pick;
