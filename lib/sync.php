@@ -533,7 +533,7 @@ function queue_build(?string $cycle = null): array {
     // added by hand for a lease no longer active in the mirror still shows
     foreach ($AD as $id => $a) {
         if (isset($all[$id])) { continue; }
-        $L = lease_one($id);
+        $L = lease_one((string)$id);   // numeric lease ids come back as int array keys
         if (!$L) { continue; }
         $rows[] = ['lease' => $L, 'cat' => -3, 'cat_label' => cat_label(-3), 'reason' => 'added by hand (lease inactive in mirror)', 'q' => $Q[$id] ?? null, 'addon' => $a];
     }
@@ -550,7 +550,7 @@ function queue_unpulled(string $cycle, array $setIds): array {
     $out = [];
     foreach (queue_rows_for($cycle) as $id => $q) {
         if (isset($setIds[$id])) { continue; }
-        $L = lease_one($id);
+        $L = lease_one((string)$id);   // numeric lease ids come back as int array keys
         if (!$L) { continue; }
         $out[] = ['lease' => $L, 'cat' => 0, 'cat_label' => 'not pulled', 'reason' => 'decision saved, lease not in this set', 'q' => $q, 'addon' => null];
     }
