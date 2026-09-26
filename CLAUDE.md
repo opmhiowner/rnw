@@ -307,3 +307,8 @@ search with `includeBalances=true` (`lease.depositBalance`, `lease.currentBalanc
 `history_rows()` / `config_string()` factored out (config falls back to the Rentvine unit in "type - bd / ba / pk"),
 the same-building "Last increase" column is blank when Rentvine's is; set / Prep rows prefer Sync Center's figure until
 the decision snapshot is confirmed. The `renewal_lease_live` cache and `history_live` from earlier today are gone.
+**Sep 26: v.28 gave a 500 on the board call on first deploy with the real feeds** - the two v.32 feeds are big (every
+recurring charge per lease; every lease of every status with property / unit / portfolio blobs) and decoding them whole in
+PHP on each page load exceeded the memory limit. `sync_feed_slim()` now lets MySQL extract only the handful of values
+(`JSON_EXTRACT`: lease.rentAmount, _fetched_at, customFields[*].fields[*], charges; depositBalance, currentBalance) and
+`lease_join()` reads those slim shapes. Sync Center's custom field 3 is read before the older leases-feed keys. v.29.

@@ -76,6 +76,52 @@ function sync_feed(string $feed, bool $reload = false): array {
     return $cache[$k] = $out;
 }
 
+// ---------- the two Renewal feeds from Sync Center v.32, read SLIM: only the handful of values
+// this app needs, extracted by MySQL from the JSON, never the whole record. lease-details carries
+// the full lease + every recurring charge, leases-balances every lease of every status with its
+// property / unit / portfolio blobs - decoding all of that in PHP on every page load blew the
+// memory limit on first deploy (v.28, 500 on the board call).
+function sync_feed_slim(string $feed): array {
+    static $cache = [];
+    $k = oid() . ':' . $feed;
+    if (isset($cache[$k])) { return $cache[$k]; }
+    $out = [];
+    if (sync_ready()) {
+        try {
+            if ($feed === 'lease-details') {
+                $st = db()->prepare("SELECT external_id,
+                        JSON_UNQUOTE(JSON_EXTRACT(raw, '$.lease.rentAmount'))  AS rent,
+                        JSON_UNQUOTE(JSON_EXTRACT(raw, '$._fetched_at'))       AS fetched_at,
+                        JSON_EXTRACT(raw, '$.customFields[*].fields[*]')       AS fields,
+                        JSON_EXTRACT(raw, '$.charges')                         AS charges
+                    FROM sync_records WHERE company_id = ? AND office_id = ? AND feed = ?");
+                $st->execute([cid(), oid(), $feed]);
+                foreach ($st as $r) {
+                    $out[(string)$r['external_id']] = [
+                        'rent'       => $r['rent'] === null || $r['rent'] === 'null' ? null : $r['rent'],
+                        'fetched_at' => $r['fetched_at'] === 'null' ? null : $r['fetched_at'],
+                        'fields'     => json_decode((string)$r['fields'], true) ?: [],
+                        'charges'    => json_decode((string)$r['charges'], true) ?: [],
+                    ];
+                }
+            } elseif ($feed === 'leases-balances') {
+                $st = db()->prepare("SELECT external_id,
+                        JSON_UNQUOTE(JSON_EXTRACT(raw, '$.lease.depositBalance')) AS deposit,
+                        JSON_UNQUOTE(JSON_EXTRACT(raw, '$.lease.currentBalance')) AS balance
+                    FROM sync_records WHERE company_id = ? AND office_id = ? AND feed = ?");
+                $st->execute([cid(), oid(), $feed]);
+                foreach ($st as $r) {
+                    $out[(string)$r['external_id']] = [
+                        'deposit' => $r['deposit'] === null || $r['deposit'] === 'null' ? null : $r['deposit'],
+                        'balance' => $r['balance'] === null || $r['balance'] === 'null' ? null : $r['balance'],
+                    ];
+                }
+            }
+        } catch (Throwable $e) { /* feed not there yet, or no JSON functions: the app runs without it */ }
+    }
+    return $cache[$k] = $out;
+}
+
 // the index rows (sync_leases.raw + columns) for this office
 function sync_index(bool $reload = false): array {
     static $rows = null;
@@ -144,12 +190,11 @@ function lease_join(array $ix, array $F): array {
     // (and on the recurring charge), never on the lease itself.
     $LU   = isset($rec['unit']) && is_array($rec['unit']) ? $rec['unit'] : [];
     // Sync Center v.32 feeds (Larry, Sep 25: everything Rentvine-side comes through Sync Center):
-    //   lease-details   = {leaseID, _fetched_at, lease:{... rentAmount}, customFields:[{fields:[{customFieldID, name, value}]}], charges:[...]}
-    //   leases-balances = the lease search row {lease:{depositBalance, currentBalance}}
+    //   lease-details   -> slim {rent (lease.rentAmount), fetched_at, fields (every custom field), charges (recurring charges)}
+    //   leases-balances -> slim {deposit (lease.depositBalance), balance (lease.currentBalance)}
     $D  = $F['details'][$id] ?? [];
-    $DL = isset($D['lease']) && is_array($D['lease']) ? $D['lease'] : [];
-    $B  = lease_core($F['balances'][$id] ?? []);
-    $chg = (isset($D['charges']) && is_array($D['charges']) && function_exists('rv_pick_rent_charge')) ? rv_pick_rent_charge($D['charges']) : null;
+    $B  = $F['balances'][$id] ?? [];
+    $chg = (!empty($D['charges']) && function_exists('rv_pick_rent_charge')) ? rv_pick_rent_charge($D['charges']) : null;
     $pid  = (string)(sx($ix, ['property_id', 'propertyId']) ?? sx($L, ['propertyID', 'propertyId', 'property_id']) ?? '');
     $uid  = (string)(sx($ix, ['unit_id', 'unitId']) ?? sx($L, ['unitID', 'unitId', 'unit_id']) ?? '');
     $oid_ = (string)(sx($ix, ['owner_id', 'ownerId']) ?? sx($L, ['ownerID', 'ownerId']) ?? '');
@@ -194,28 +239,27 @@ function lease_join(array $ix, array $F): array {
     // rent / deposit are its ASKING figures and only a fallback - Rentvine keeps the real rent on the
     // rent recurring charge, which rent_backfill() reads live when the mirror has only the unit's.
     $rentCharge = $chg && $chg['amount'] !== null ? (float)$chg['amount'] : null;               // the open rent charge (Sync Center lease-details)
-    $rentLease = sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent', 'currentRent']) ?? sx_num($DL, ['rentAmount', 'baseRentAmount']);
+    $rentLease = sx_num($L, ['actualRentAmount', 'actualRent', 'rentAmount', 'rent', 'monthlyRent', 'currentRent']) ?? sx_num($D, ['rent']);
     $rent = $rentCharge ?? $rentLease ?? sx_num($LU, ['rent']) ?? sx_num($U, ['rent']);
     $rentSource = $rentCharge !== null ? 'charge' : ($rentLease !== null ? 'lease' : ($rent !== null ? 'unit' : null));
     $depLease = sx_num($L, ['securityDepositAmount', 'securityDeposit', 'securityDepositBalance', 'depositAmount', 'deposit']);
-    $depBal = sx_num($B, ['depositBalance']);                                                      // security deposit held (leases-balances)
+    $depBal = sx_num($B, ['deposit']);                                                      // security deposit held (leases-balances)
     $deposit = $depBal ?? $depLease ?? sx_num($LU, ['deposit']) ?? sx_num($U, ['deposit']);          // held balance beats the contract figure
     $depositSource = $depBal !== null ? 'balance' : ($depLease !== null ? 'lease' : ($deposit !== null ? 'unit' : null));
-    $balance = sx_num($B, ['currentBalance']);                                                     // tenant ledger balance = FileMaker's TPast Due
+    $balance = sx_num($B, ['balance']);                                                     // tenant ledger balance = FileMaker's TPast Due
     $eligible = sx_date($L, ['increaseEligibilityDate']);
     // Rentvine moves increaseEligibilityDate a year out at each increase: the last increase is a year before it
     $lastInc = sx_date($L, ['lastRentIncreaseDate', 'lastIncreaseDate']) ?? ($eligible ? date('Y-m-d', strtotime($eligible . ' -1 year')) : null);
-    $lastRenewal = sx_date($L, ['customFields.Last Renewal Date', 'lastRenewalDate']);
+    // "Last Increase Date.L" = lease custom field 3 (category OPM), via Sync Center's lease-details (v.32.1);
+    // first because it is the record refreshed daily, the leases-feed keys below are older fallbacks
+    $lastRenewal = !empty($D['fields']) ? custom_field_date($D['fields'], '3', '/last\s*(increase|renewal)/i') : null;
+    $lastRenewal = $lastRenewal ?? sx_date($L, ['customFields.Last Renewal Date', 'lastRenewalDate']);
     if ($lastRenewal === null && isset($L['customFields']) && is_array($L['customFields'])) {
         foreach ($L['customFields'] as $cf) {
             if (!is_array($cf)) { continue; }
             $n = strtolower((string)sx($cf, ['name', 'label', 'fieldName'], ''));
             if (str_contains($n, 'renewal')) { $lastRenewal = sx_date($cf, ['value', 'fieldValue']); break; }
         }
-    }
-    // "Last Increase Date.L" = lease custom field 3 (category OPM), via Sync Center's lease-details
-    if ($lastRenewal === null && isset($D['customFields']) && is_array($D['customFields'])) {
-        $lastRenewal = custom_field_date($D['customFields'], '3', '/last\s*(increase|renewal)/i');
     }
     $bed = sx_num($U, ['beds', 'bedrooms', 'bed']) ?? sx_num($LU, ['beds']);
     $fb = sx_num($U, ['fullBaths']) ?? sx_num($LU, ['fullBaths']); $hb = sx_num($U, ['halfBaths']) ?? sx_num($LU, ['halfBaths']);
@@ -254,7 +298,7 @@ function lease_join(array $ix, array $F): array {
         'last_renewal' => $lastRenewal,
         'balance'      => $balance,
         'charge_id'    => $chg ? (string)$chg['id'] : '', 'day_due' => $chg ? $chg['day_due'] : null,
-        'details_at'   => (string)($D['_fetched_at'] ?? ''),
+        'details_at'   => (string)($D['fetched_at'] ?? ''),
         'active'       => sync_row_active($ix, $closed, $end) && (string)(sx($U, ['isVacant']) ?? '0') !== '1',
         'status_raw'   => (string)(sx($L, ['leaseStatusID', 'status']) ?? sx($ix, ['status']) ?? ''),
         'has_record'   => $rec !== [],
@@ -283,7 +327,7 @@ function sync_feeds_all(): array {
             'properties' => sync_feed('properties'), 'owners' => sync_feed('owners'),
             // Sync Center v.32 (for this app): per-lease record {leaseID, _fetched_at, lease, customFields, charges}
             // and the lease search with balances {lease:{depositBalance, currentBalance}}
-            'details' => sync_feed('lease-details'), 'balances' => sync_feed('leases-balances')];
+            'details' => sync_feed_slim('lease-details'), 'balances' => sync_feed_slim('leases-balances')];
 }
 
 // every active lease in this office, joined
